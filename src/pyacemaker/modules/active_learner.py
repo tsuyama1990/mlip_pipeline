@@ -6,7 +6,9 @@ from pathlib import Path
 
 from pyacemaker.core.config import OrchestratorConfig
 from pyacemaker.core.interfaces import Oracle
+from pyacemaker.core.utils import atoms_to_metadata
 from pyacemaker.domain_models.models import StructureMetadata
+from pyacemaker.oracle.dataset import DatasetManager
 
 
 class ActiveLearner:
@@ -16,23 +18,31 @@ class ActiveLearner:
         """Initialize Active Learner."""
         self.config = config
         self.oracle = oracle
+        self.dataset_manager = DatasetManager()
 
     def run_loop(self, pool_path: Path, work_dir: Path) -> tuple[Path, Path]:
-        """Run the active learning loop (Mock/Stub for now).
+        """Run the active learning loop.
 
-        Returns:
-            Tuple of (final_model_path, dft_dataset_path).
+        Reads from pool, labels with Oracle, saves to DFT dataset.
         """
-        # Logic for active learning loop would go here.
-        # For UAT of Cycle 06 (Validation), we just need this to exist.
         final_model_path = work_dir / "final_model.model"
         dft_dataset_path = work_dir / "dft_dataset.xyz"
 
-        # Ensure dummy files exist for testing flow
+        # Ensure dummy model exists for flow
         if not final_model_path.exists():
             final_model_path.touch()
-        if not dft_dataset_path.exists():
-            dft_dataset_path.touch()
+
+        # Process pool -> Label -> Save
+        # Load pool as stream
+        pool_stream = self.dataset_manager.load_iter(pool_path)
+        metadata_stream = (atoms_to_metadata(a) for a in pool_stream)
+
+        # Label with Oracle
+        labeled_stream = self.oracle.compute_batch(metadata_stream)
+
+        # Save to DFT dataset
+        # Note: We use .xyz extension in variable name but save as pickle format via manager
+        self.dataset_manager.save_metadata_stream(labeled_stream, dft_dataset_path)
 
         return final_model_path, dft_dataset_path
 

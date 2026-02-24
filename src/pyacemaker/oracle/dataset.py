@@ -19,6 +19,7 @@ from loguru import logger
 
 if TYPE_CHECKING:
     from hashlib import _Hash
+    from pyacemaker.domain_models.models import StructureMetadata
 
 from pyacemaker.core.config import CONSTANTS
 from pyacemaker.core.exceptions import DatasetCorruptionError
@@ -329,6 +330,41 @@ class DatasetManager:
             stacklevel=2,
         )
         self.save_iter(data, path)
+
+    def save_metadata_stream(
+        self,
+        stream: Iterator["StructureMetadata"],
+        path: Path,
+        mode: str = "ab",
+        calculate_checksum: bool = False,
+    ) -> int:
+        """Save metadata stream to dataset file.
+
+        Args:
+            stream: Iterator of StructureMetadata.
+            path: Target path.
+            mode: File mode.
+            calculate_checksum: Whether to calculate checksum.
+
+        Returns:
+            Number of items saved.
+
+        """
+        from pyacemaker.core.utils import stream_metadata_to_atoms
+
+        count = 0
+
+        def counting_wrapper(iterator: Iterator["StructureMetadata"]) -> Iterator["StructureMetadata"]:
+            nonlocal count
+            for item in iterator:
+                count += 1
+                yield item
+
+        atoms_stream = stream_metadata_to_atoms(counting_wrapper(stream))
+        self.save_iter(
+            atoms_stream, path, mode=mode, calculate_checksum=calculate_checksum
+        )
+        return count
 
     def save_iter(
         self,

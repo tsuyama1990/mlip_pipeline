@@ -9,8 +9,8 @@ from pyacemaker.core.config import (
     DynamicsEngineConfig,
     MaceConfig,
     get_defaults,
-    load_config,
 )
+from pyacemaker.core.config_loader import load_config
 
 
 def test_load_valid_config(tmp_path):
@@ -50,8 +50,12 @@ def test_defaults_loading(tmp_path, monkeypatch):
     # Clear lru_cache
     get_defaults.cache_clear()
 
-    defaults = get_defaults()
-    assert defaults["dataset"]["train_ratio"] == 0.9
+    try:
+        defaults = get_defaults()
+        assert defaults["dataset"]["train_ratio"] == 0.9
+    finally:
+        # Restore cache state for other tests
+        get_defaults.cache_clear()
 
 def test_mace_config_url_validation():
     """Test URL validation in MaceConfig."""

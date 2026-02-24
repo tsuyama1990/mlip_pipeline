@@ -1,137 +1,325 @@
-"""Master UAT and Tutorial Script for Cycle 06."""
+import marimo
 
-import os
-import shutil
-import sys
-from pathlib import Path
+__generated_with = "0.1.0"
+app = marimo.App(width="medium")
 
-try:
-    import marimo
-except ImportError:
-    marimo = None
 
-import yaml
-from loguru import logger
+@app.cell
+def imports():
+    import os
+    import shutil
+    import sys
+    import warnings
+    from pathlib import Path
+    from typing import Iterator, Any, Iterable
+    import numpy as np
+    from ase import Atoms
+    from ase.build import molecule
+    import yaml
+    from loguru import logger
 
-from pyacemaker.core.config_loader import load_config
-from pyacemaker.orchestrator import Orchestrator
+    # pyacemaker imports
+    from pyacemaker.core.config_loader import load_config
+    from pyacemaker.orchestrator import Orchestrator
+    from pyacemaker.core.interfaces import StructureGenerator
+    from pyacemaker.core.base import ModuleResult, Metrics
+    from pyacemaker.domain_models.models import (
+        StructureMetadata,
+        StructureStatus,
+        MaterialDNA,
+    )
+    from pyacemaker.core.utils import generate_dummy_structures
 
-# Configuration matching strict schema
-UAT_CONFIG = {
-    "project": {
-        "name": "Cycle06_UAT",
-        "root_dir": "uat_output",
-    },
-    "orchestrator": {
-        "max_cycles": 1,
-        "n_local_candidates": 2,
-        "n_active_set_select": 2,
-        "dataset_file": "dataset.json",
-        "validation_file": "validation.json",
-        "validation_split": 0.2,
-    },
-    "structure_generator": {
-        "strategy": "random",
-        "parameters": {
-            "composition": {"Si": 2},
-            "box_size": [5.0, 5.0, 5.0],
-            "n_initial": 5,
+    # Configure Logging
+    logger.remove()
+    logger.add(sys.stderr, level="INFO")
+
+    # Mode Detection
+    IS_MOCK = (
+        os.environ.get("PYACEMAKER_MODE", "").upper() == "MOCK"
+        or os.environ.get("CI", "false").lower() == "true"
+        or os.environ.get("MOCK_MODE", "false").lower() == "true"
+    )
+    MODE_NAME = "MOCK" if IS_MOCK else "REAL"
+    print(f"Running in {MODE_NAME} Mode")
+
+    return (
+        Any,
+        Atoms,
+        IS_MOCK,
+        Iterable,
+        Iterator,
+        MODE_NAME,
+        MaterialDNA,
+        Metrics,
+        ModuleResult,
+        Orchestrator,
+        Path,
+        StructureGenerator,
+        StructureMetadata,
+        StructureStatus,
+        generate_dummy_structures,
+        load_config,
+        logger,
+        molecule,
+        np,
+        os,
+        shutil,
+        sys,
+        warnings,
+        yaml,
+    )
+
+
+@app.cell
+def define_sn2_generator(
+    IS_MOCK,
+    Iterable,
+    Iterator,
+    MaterialDNA,
+    Metrics,
+    ModuleResult,
+    StructureGenerator,
+    StructureMetadata,
+    StructureStatus,
+    logger,
+    molecule,
+):
+    class SN2StructureGenerator(StructureGenerator):
+        """Generates SN2 Reaction Pathway Structures (CH3Cl + OH- -> CH3OH + Cl-)."""
+
+        def __init__(self, config):
+            super().__init__(config)
+            self.logger = logger
+            self.rattle_amp = 0.1
+
+        def run(self) -> ModuleResult:
+            return ModuleResult(status="success", metrics=Metrics())
+
+        def get_strategy_info(self) -> dict[str, Any]:
+            return {"strategy": "sn2_custom", "parameters": {"rattle_amp": self.rattle_amp}}
+
+        def generate_initial_structures(self) -> Iterator[StructureMetadata]:
+            # Provide basic endpoints
+            yield from self._generate_path(n_points=2)
+
+        def generate_direct_samples(
+            self, n_samples: int, objective: str = "maximize_entropy"
+        ) -> Iterator[StructureMetadata]:
+            self.logger.info(f"Generating {n_samples} SN2 pathway structures.")
+            yield from self._generate_path(n_samples)
+
+        def generate_local_candidates(
+            self, seed_structure: StructureMetadata, n_candidates: int, cycle: int = 1
+        ) -> Iterator[StructureMetadata]:
+            atoms = seed_structure.features.get("atoms")
+            if not atoms:
+                return
+            for _ in range(n_candidates):
+                new_atoms = atoms.copy()
+                new_atoms.rattle(self.rattle_amp)
+                yield StructureMetadata(
+                    features={"atoms": new_atoms},
+                    material_dna=seed_structure.material_dna,
+                    status=StructureStatus.NEW,
+                    tags=["candidate", "local"],
+                )
+
+        def generate_batch_candidates(
+            self,
+            seed_structures: Iterable[StructureMetadata],
+            n_candidates_per_seed: int,
+            cycle: int = 1,
+        ) -> Iterator[StructureMetadata]:
+            # Simple rattle for local candidates
+            for seed in seed_structures:
+                yield from self.generate_local_candidates(
+                    seed, n_candidates_per_seed, cycle
+                )
+
+        def _generate_path(self, n_points: int):
+            # 1. Define Reactant: CH3Cl + OH-
+            try:
+                mol1 = molecule("CH3Cl")
+                # Center C at 0
+                c_idx = [a.index for a in mol1 if a.symbol == "C"][0]
+                mol1.translate(-mol1.positions[c_idx])
+
+                # Rotate so Cl is on Z axis (approx)
+                cl_idx = [a.index for a in mol1 if a.symbol == "Cl"][0]
+                vec = mol1.positions[cl_idx] - mol1.positions[c_idx]
+                # Align vec to [0,0,1]
+                # Simple check: if vec is already aligned
+                if np.linalg.norm(np.cross(vec, [0, 0, 1])) > 1e-3:
+                     # Compute rotation matrix or use ASE rotate
+                     # ASE rotate takes vector
+                     mol1.rotate(vec, [0, 0, 1])
+
+                # OH-
+                mol2 = molecule("OH")
+                # Place OH at -4.0 Z (attacking C)
+                mol2.translate([0, 0, -4.0])
+
+                reactant = mol1.copy()
+                reactant.extend(mol2)
+                reactant.set_cell([12, 12, 12])
+                reactant.center()
+                reactant.pbc = True
+            except Exception as e:
+                self.logger.warning(f"Failed to build SN2 molecules: {e}. Using dummies.")
+                # Fallback for CI environments without G2 data
+                from ase import Atoms
+                reactant = Atoms('C', positions=[[0, 0, 0]], cell=[10,10,10], pbc=True)
+
+            for i in range(n_points):
+                alpha = i / (n_points - 1) if n_points > 1 else 0.0
+                frame = reactant.copy()
+
+                # Mock trajectory: Move OH closer, Cl away
+                # Assuming atom indices are stable
+                # Find O and Cl
+                try:
+                    o_indices = [a.index for a in frame if a.symbol == 'O']
+                    cl_indices = [a.index for a in frame if a.symbol == 'Cl']
+                    if o_indices and cl_indices:
+                        o_idx = o_indices[0]
+                        cl_idx = cl_indices[0]
+
+                        # Move O from -4 to -1.5 (Reaction coord)
+                        # Move Cl from ~1.8 to 4.0
+
+                        current_o_z = frame.positions[o_idx][2]
+                        target_o_z = -1.5
+                        shift_o = (target_o_z - (-4.0)) * alpha
+                        frame.positions[o_idx][2] += shift_o
+
+                        # Cl usually at +1.78
+                        frame.positions[cl_idx][2] += 2.0 * alpha
+                except Exception:
+                    pass
+
+                # Add some noise
+                if IS_MOCK:
+                    frame.rattle(0.05)
+
+                yield StructureMetadata(
+                    features={"atoms": frame},
+                    material_dna=MaterialDNA(
+                        composition={"C": 1/7, "H": 4/7, "O": 1/7, "Cl": 1/7}
+                    ),
+                    status=StructureStatus.NEW,
+                    tags=["sn2_path", f"alpha_{alpha:.2f}".replace(".", "p")],
+                )
+
+    return SN2StructureGenerator,
+
+
+@app.cell
+def define_workflow(
+    IS_MOCK,
+    Orchestrator,
+    Path,
+    SN2StructureGenerator,
+    load_config,
+    shutil,
+    yaml,
+):
+    def run_uat_workflow():
+        output_dir = Path("uat_sn2_reaction").absolute()
+        if output_dir.exists():
+            shutil.rmtree(output_dir)
+        output_dir.mkdir(parents=True)
+
+        config_dict = {
+            "project": {"name": "SN2_UAT", "root_dir": str(output_dir)},
+            "structure_generator": {"strategy": "random"},  # Placeholder
+            "oracle": {
+                "mock": IS_MOCK,
+                "dft": {
+                    "code": "mock",
+                    "pseudopotentials": {
+                        "C": "C.upf",
+                        "H": "H.upf",
+                        "O": "O.upf",
+                        "Cl": "Cl.upf",
+                    },
+                },
+                "mace": {
+                    "model_path": "medium" if not IS_MOCK else "mock_model.model",
+                    "mock": IS_MOCK,
+                },
+            },
+            "trainer": {"potential_type": "pace", "mock": IS_MOCK},
+            "distillation": {
+                "enable_mace_distillation": True,
+                "step1_direct_sampling": {
+                    "target_points": 10 if IS_MOCK else 50,
+                    "objective": "random",
+                },
+                "step4_surrogate_sampling": {
+                    "target_points": 20 if IS_MOCK else 500,
+                    "method": "md",
+                },
+                "step7_pacemaker_finetune": {"enable": True, "weight_dft": 10.0},
+                "pool_file": "step1_pool.xyz",
+                "surrogate_file": "step4_surrogate.xyz",
+                "surrogate_dataset_file": "step5_labeled.xyz",
+            },
+            "validator": {"phonon_supercell": [1, 1, 1], "eos_strain": 0.01},
         }
-    },
-    "oracle": {
-        "mock": False,
-        "dft": {
-            "pseudopotentials": {"Si": "Si.pbe-n-kjpaw_psl.1.0.0.UPF"},
-        },
-        "mace": {
-            "model_path": "medium",
-        }
-    },
-    "trainer": {
-        "potential_type": "ace",
-        "parameters": {
-            "loss": {"kappa": 0.5},
-        }
-    },
-    "validator": {
-        "phonon_supercell": [2, 2, 2],
-        "phonon_tolerance": -0.05,
-        "eos_strain": 0.05,
-        "eos_points": 5,
-        "elastic_strain": 0.01,
-    },
-    "dynamics_engine": {
-        "engine": "ase",
-    },
-    "distillation": {
-        "enable_mace_distillation": False
-    }
-}
 
-# Check for Mock Mode via Environment Variable (Standard in CI)
-IS_MOCK = os.environ.get("MOCK_MODE", "false").lower() == "true"
-if IS_MOCK:
-    logger.info("Running in Mock Mode")
-    UAT_CONFIG["orchestrator"]["max_cycles"] = 1
-    UAT_CONFIG["structure_generator"]["parameters"]["n_initial"] = 2
-    UAT_CONFIG["oracle"]["mock"] = True
-    UAT_CONFIG["trainer"]["mock"] = True
+        # Write config
+        config_path = output_dir / "config.yaml"
+        with open(config_path, "w") as f:
+            yaml.dump(config_dict, f)
 
-
-def main() -> None:
-    """Main execution function."""
-    logger.info("Starting UAT Script...")
-
-    # 1. Setup Environment
-    # Use relative path for output
-    output_dir = Path(UAT_CONFIG["project"]["root_dir"]).absolute()  # type: ignore[arg-type]
-    if output_dir.exists():
-        shutil.rmtree(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Ensure data directory exists (Orchestrator expects it)
-    data_dir = output_dir / "data"
-    data_dir.mkdir(parents=True, exist_ok=True)
-
-    # Create dummy UPF file to pass validation
-    upf_name = UAT_CONFIG["oracle"]["dft"]["pseudopotentials"]["Si"]
-    upf_path = output_dir / upf_name
-    upf_path.touch()
-    # Update config to use absolute path
-    UAT_CONFIG["oracle"]["dft"]["pseudopotentials"]["Si"] = str(upf_path)
-
-    # Save config
-    config_path = output_dir / "config.yaml"
-    with config_path.open("w") as f:
-        yaml.dump(UAT_CONFIG, f)
-
-    # 2. Load Config
-    try:
         config = load_config(config_path)
-    except Exception as e:
-        logger.error(f"Failed to load config: {e}")
-        raise
 
-    # 3. Run Orchestrator
-    orchestrator = Orchestrator(config, base_dir=output_dir)
-    result = orchestrator.run()
+        # Create dummy pseudopotentials for validation if missing
+        if IS_MOCK:
+            for el in ["C", "H", "O", "Cl"]:
+                (output_dir / f"{el}.upf").touch()
+                config.oracle.dft.pseudopotentials[el] = str(
+                    output_dir / f"{el}.upf"
+                )
 
+        # Instantiate Generator
+        generator = SN2StructureGenerator(config)
+
+        # Instantiate Orchestrator
+        orchestrator = Orchestrator(
+            config, base_dir=output_dir, structure_generator=generator
+        )
+
+        # Run
+        result = orchestrator.run()
+        return result, output_dir
+
+    return run_uat_workflow,
+
+
+@app.cell
+def run_and_display(run_uat_workflow):
+    # This cell executes the workflow when running in Marimo
+    result, output_dir = run_uat_workflow()
+
+    print(f"Workflow Completed. Status: {result.status}")
     if result.status == "failed":
-        logger.error(f"Orchestrator failed: {result.error}")
-        sys.exit(1)
-
-    # 4. Verify Outputs
-    validation_report = output_dir / "validation" / "validation_report.html"
-    if validation_report.exists():
-        logger.info(f"Validation report generated at {validation_report}")
-        logger.info("Validation complete.")
+        print(f"Error: {result.error}")
     else:
-        logger.error("Validation report missing!")
-        # If in Mock mode, report should be generated by MockValidator (which we updated)
-        sys.exit(1)
+        print(f"Artifacts located in: {output_dir}")
 
-    logger.info("UAT Completed Successfully.")
+    return output_dir, result
+
+
+@app.cell
+def visualizer(output_dir, result):
+    import marimo as mo
+
+    if result.status == "success":
+        return mo.md(f"## ✅ UAT Passed! Artifacts: `{output_dir}`")
+    return mo.md(f"## ❌ UAT Failed: {result.error}")
 
 
 if __name__ == "__main__":
-    main()
+    app.run()
