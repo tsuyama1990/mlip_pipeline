@@ -23,6 +23,8 @@ def intro_md(mo):
         2.  **Configuration**: Setup the `Orchestrator` with a hybrid Mock/Real configuration.
         3.  **Execution**: Run the 7-step pipeline (Direct Sampling -> Active Learning -> Surrogate Generation -> Labeling -> Training -> Delta Learning).
         4.  **Validation**: Verify that artifacts (potentials, datasets) are created and physics checks pass.
+
+        The goal is to automatically train a potential that captures the transition state of the reaction by distilling knowledge from a MACE foundation model.
         """
     )
 
@@ -56,6 +58,7 @@ def generator_md(mo):
 
         We define a custom `SN2StructureGenerator` that interpolates structures along the reaction coordinate.
         This simulates the "Exploration" phase of the active learning loop.
+        It generates a sequence of structures from reactant to product, providing a diverse initial pool for the distillation process.
         """
     )
 
@@ -66,7 +69,7 @@ def define_sn2_generator(IS_MOCK, logger):
     import numpy as np
     from ase.build import molecule
     from pyacemaker.core.interfaces import StructureGenerator
-    from pyacemaker.core.base import ModuleResult, Metrics
+    from pyacemaker.core.base import ModuleResult as _ModuleResult, Metrics
     from pyacemaker.domain_models.models import (
         StructureMetadata,
         StructureStatus,
@@ -81,8 +84,8 @@ def define_sn2_generator(IS_MOCK, logger):
             self.logger = logger
             self.rattle_amp = 0.1
 
-        def run(self) -> ModuleResult:
-            return ModuleResult(status="success", metrics=Metrics())
+        def run(self) -> _ModuleResult:
+            return _ModuleResult(status="success", metrics=Metrics())
 
         def get_strategy_info(self) -> dict[str, Any]:
             return {
@@ -210,6 +213,12 @@ def workflow_md(mo):
 
         The `run_uat_workflow` function initializes the `Orchestrator` with our custom generator and runs the full pipeline.
         It handles cleaning up the output directory and creating necessary mock files if needed.
+
+        We configure the `Orchestrator` to use:
+        - **MACE Distillation**: Enabled.
+        - **Direct Sampling**: Uses our custom SN2 generator via `random` strategy (which delegates to generator).
+        - **Oracle**: Mock or Real MACE.
+        - **Trainer**: Mock or Real Pacemaker.
         """
     )
 
@@ -288,12 +297,13 @@ def define_workflow(IS_MOCK, SN2StructureGenerator):
              return ModuleResult(status="failed", error=f"Config load failed: {e}"), output_dir
 
         # Create dummy pseudopotentials for validation if missing (Mock requirement)
+        dummy_files = []
         if IS_MOCK:
             for el in ["C", "H", "O", "Cl"]:
-                (output_dir / f"{el}.upf").touch()
-                config.oracle.dft.pseudopotentials[el] = str(
-                    output_dir / f"{el}.upf"
-                )
+                p = output_dir / f"{el}.upf"
+                p.touch()
+                dummy_files.append(p)
+                config.oracle.dft.pseudopotentials[el] = str(p)
 
         # Instantiate Generator
         generator = SN2StructureGenerator(config)
@@ -305,6 +315,12 @@ def define_workflow(IS_MOCK, SN2StructureGenerator):
 
         # Run
         result = orchestrator.run()
+
+        # Cleanup dummy files
+        for p in dummy_files:
+            if p.exists():
+                p.unlink()
+
         return result, output_dir
 
     return run_uat_workflow
@@ -328,9 +344,21 @@ def run_and_display(run_uat_workflow):
 def visualizer(mo, output_dir, result):
     status = getattr(result, "status", "unknown")
     error = getattr(result, "error", None)
+    metrics = getattr(result, "metrics", {})
 
     if status == "success":
-        return mo.md(f"## ✅ UAT Passed! Artifacts: `{output_dir}`")
+        return mo.md(
+            f"""
+            ## ✅ UAT Passed!
+
+            **Artifacts Directory**: `{output_dir}`
+
+            **Pipeline Metrics**:
+            ```json
+            {metrics}
+            ```
+            """
+        )
 
     return mo.md(f"## ❌ UAT Failed: {error}")
 
