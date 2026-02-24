@@ -45,6 +45,7 @@ def test_check_phonons_success(physics_validator: PhysicsValidator, mock_atoms: 
 
         # Mock band structure to return positive frequencies
         # Frequencies is a list of arrays (one for each path segment)
+        # Verify calculation: > tolerance (e.g. -0.05)
         mock_phonopy.get_band_structure_dict.return_value = {
             "frequencies": [np.array([1.0, 2.0]), np.array([1.0, 2.0])]
         }
@@ -54,8 +55,15 @@ def test_check_phonons_success(physics_validator: PhysicsValidator, mock_atoms: 
             MagicMock(symbols=["Si"], cell=np.eye(3), scaled_positions=np.zeros((1, 3)))
         ]
 
+        # We also need to mock produce_force_constants to ensure it was called with forces
+
         result = physics_validator.check_phonons(mock_atoms)
+
         assert result is True
+        # Verify force constants were produced with external forces (the fix requested)
+        mock_phonopy.produce_force_constants.assert_called_once()
+        call_kwargs = mock_phonopy.produce_force_constants.call_args.kwargs
+        assert "forces" in call_kwargs or len(mock_phonopy.produce_force_constants.call_args.args) > 0
 
 
 def test_check_phonons_failure(physics_validator: PhysicsValidator, mock_atoms: Atoms) -> None:

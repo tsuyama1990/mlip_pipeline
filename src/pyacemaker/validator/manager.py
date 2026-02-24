@@ -100,7 +100,7 @@ class ValidatorManager:
             self.logger.exception("Skipping validation due to missing calculator.")
             return ValidationResult(
                 passed=False,
-                metrics={},
+                metrics={"error": 1.0}, # Minimal metrics for error state
                 eos_stable=False,
                 phonon_stable=False,
                 elastic_stable=False,

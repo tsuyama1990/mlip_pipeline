@@ -49,7 +49,6 @@ class MaceDistillationWorkflow:
         pacemaker_trainer: PacemakerTrainer,
         mace_trainer: Any,  # MaceTrainer type
         work_dir: Path,
-        batch_size: int = 100,  # Default batch size for labeling if not in config
     ) -> None:
         self.config = config
         self.logger = get_logger(self.__class__.__name__)
@@ -61,7 +60,7 @@ class MaceDistillationWorkflow:
         self.pacemaker_trainer = pacemaker_trainer
         self.mace_trainer = mace_trainer
         self.work_dir = work_dir
-        self.batch_size = batch_size
+        # batch_size is now retrieved from config in labeling step
 
         # Ensure work directory exists
         self.work_dir.mkdir(parents=True, exist_ok=True)
@@ -159,9 +158,10 @@ class MaceDistillationWorkflow:
         # The previous code used generate_candidates which implies simple generation.
         # We'll use generate_direct_samples again for now, assuming it pulls from generator config.
         candidates_iter = self.structure_generator.generate_direct_samples(
-            n_samples=target_count + 1000, # Request more to ensure we hit limit
+            n_samples=target_count,
             objective=self.config.step1_direct_sampling.objective # Reuse objective?
         )
+        # Use islice just in case generator is infinite, but request exactly target_count
         limited_iter = islice(candidates_iter, target_count)
 
         count = self.dataset_manager.save_metadata_stream(limited_iter, surrogate_pool_path)
@@ -199,6 +199,13 @@ class MaceDistillationWorkflow:
         # Update Oracle with the trained model
         self.mace_oracle.update_model(mace_model_path)
 
+        # Use batch size from config or constant if not available
+        # Assuming MACE config has batch size
+        # We can fetch it via mace_oracle.config if needed, or use a default
+        batch_size = 100 # Default
+        if hasattr(self.mace_oracle.config, 'batch_size'):
+             batch_size = self.mace_oracle.config.batch_size
+
         # Stream load -> Label -> Stream save
         # This prevents loading all 10k+ structures into memory
 
@@ -208,57 +215,49 @@ class MaceDistillationWorkflow:
         # 2. Convert to Atoms for calculator
         atoms_iter = stream_metadata_to_atoms(input_iter)
 
-        # 3. Label stream (batching handled inside calculator/oracle usually,
-        # but here we might need to be careful. ASE calculator is per-atoms usually)
-
+        # 3. Label stream (Generator-based batching)
         def labeled_stream_gen(iterator: Iterator["Atoms"]) -> Iterator["Atoms"]:
-            batch_size = self.batch_size
             batch: list[Atoms] = []
             for atoms in iterator:
                 # Validation
                 validate_structure_integrity_atoms(atoms)
-
                 batch.append(atoms)
+
                 if len(batch) >= batch_size:
-                    # Process batch
-                    for a in batch:
-                        # Calc energy/forces
-                        a.calc = self.mace_oracle.calculator
-                        try:
-                            a.get_potential_energy()
-                            a.get_forces()
-                            yield a
-                        except Exception as e:
-                            logger.warning(f"Failed to label structure: {e}")
-                            # Skip bad structures
-                            continue
-                    batch = []
+                    yield from self._process_batch(batch)
+                    batch = [] # Clear memory
 
-            # Leftovers
-            for a in batch:
-                a.calc = self.mace_oracle.calculator
-                try:
-                    a.get_potential_energy()
-                    a.get_forces()
-                    yield a
-                except Exception as e:
-                    logger.warning(f"Failed to label structure: {e}")
+            # Process remaining
+            if batch:
+                yield from self._process_batch(batch)
 
-        # 4. Save stream
+        # 4. Save stream using batch write to optimize I/O
         count = 0
         # Initialize file
         if labeled_pool_path.exists():
             labeled_pool_path.unlink()
 
-        # Write incrementally
-        # We can't easily use ASE write(append=True) efficiently if we open/close every time.
-        # Better to keep file open.
-        # Note: ASE's write supports a file object.
         try:
-            with open(labeled_pool_path, "w") as f:
+            with labeled_pool_path.open("w") as f:
+                 # We can use ASE's write with a list for batch writing if labeled_stream_gen yielded batches
+                 # But write() usually takes atoms or list of atoms.
+                 # Let's iterate and write one by one or in chunks?
+                 # ASE write(file, images) is optimized if file is open.
+
+                 # Optimization: Buffer output writes
+                 buffer: list[Atoms] = []
+                 write_buffer_size = 1000
+
                  for atoms in labeled_stream_gen(atoms_iter):
-                     write(f, atoms, format="extxyz")
+                     buffer.append(atoms)
                      count += 1
+                     if len(buffer) >= write_buffer_size:
+                         write(f, buffer, format="extxyz")
+                         buffer = []
+
+                 if buffer:
+                     write(f, buffer, format="extxyz")
+
         except Exception as e:
             logger.error(f"Failed to write labeled structures to {labeled_pool_path}: {e}")
             raise
@@ -267,6 +266,27 @@ class MaceDistillationWorkflow:
         state.artifacts["labeled_surrogate_path"] = str(labeled_pool_path)
         state.current_step = 6
         return state
+
+    def _process_batch(self, batch: list["Atoms"]) -> Iterator["Atoms"]:
+        """Process a batch of atoms with the MACE calculator."""
+        # Assuming MACE calculator can handle batching internally or we iterate
+        # If calculator is attached, get_potential_energy might call it.
+        # Ideally, we should use a batch compute method on the calculator if available.
+        # For generic ASE calculators, we iterate.
+
+        # MACE Calculator optimization: if using MACECalculator directly, it might support batching
+        # But here we are using self.mace_oracle.calculator
+
+        for a in batch:
+            a.calc = self.mace_oracle.calculator
+            try:
+                # This triggers calculation
+                a.get_potential_energy()
+                a.get_forces()
+                yield a
+            except Exception as e:
+                logger.warning(f"Failed to label structure: {e}")
+                # Skip bad structures
 
     def step6_pacemaker_base_training(self, state: PipelineState) -> PipelineState:
         """

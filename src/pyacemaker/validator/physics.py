@@ -48,7 +48,7 @@ class PhysicsValidator(BaseValidator):
         # Currently, Manager calls specific methods.
         return ValidationResult(
              passed=False,
-             metrics={},
+             metrics={"error": 1.0}, # Satisfy min_length=1
              eos_stable=False,
              phonon_stable=False,
              elastic_stable=False
@@ -61,6 +61,7 @@ class PhysicsValidator(BaseValidator):
         tolerance: float | None = None,
     ) -> bool:
         """Check phonon stability."""
+        # Use defaults from CONSTANTS if not provided
         if supercell is None:
             supercell = CONSTANTS.physics_phonon_supercell
         if tolerance is None:
@@ -119,11 +120,15 @@ class PhysicsValidator(BaseValidator):
     def check_eos(
         self,
         atoms: Atoms,
-        strain: float = CONSTANTS.physics_eos_strain,
-        points: int = CONSTANTS.physics_eos_points,
+        strain: float | None = None,
+        points: int | None = None,
         output_path: str = "eos.png",
     ) -> tuple[float, str]:
         """Check Equation of State."""
+        # Use defaults from CONSTANTS if not provided
+        strain_val = strain if strain is not None else CONSTANTS.physics_eos_strain
+        points_val = points if points is not None else CONSTANTS.physics_eos_points
+
         if atoms.calc is None:
             msg = "Atoms object must have a calculator attached."
             raise ValueError(msg)
@@ -131,7 +136,7 @@ class PhysicsValidator(BaseValidator):
         volumes = []
         energies = []
 
-        factors = np.linspace(1.0 - strain, 1.0 + strain, points)
+        factors = np.linspace(1.0 - strain_val, 1.0 + strain_val, points_val)
 
         original_cell = atoms.get_cell()  # type: ignore[no-untyped-call]
 
@@ -160,9 +165,12 @@ class PhysicsValidator(BaseValidator):
     def calculate_elastic_constants(
         self,
         atoms: Atoms,
-        strain: float = CONSTANTS.physics_elastic_strain
+        strain: float | None = None
     ) -> dict[str, float]:
         """Calculate elastic constants."""
+        # Use defaults from CONSTANTS if not provided
+        strain_val = strain if strain is not None else CONSTANTS.physics_elastic_strain
+
         if atoms.calc is None:
             msg = "Atoms object must have a calculator attached."
             raise ValueError(msg)
@@ -174,13 +182,13 @@ class PhysicsValidator(BaseValidator):
         atoms_c11 = atoms.copy()  # type: ignore[no-untyped-call]
         atoms_c11.calc = atoms.calc
         c = cell.copy()
-        c[0, 0] *= 1 + strain
+        c[0, 0] *= 1 + strain_val
         atoms_c11.set_cell(c, scale_atoms=True)
         stress_c11 = atoms_c11.get_stress(voigt=True)
 
         # Voigt order: xx, yy, zz, yz, xz, xy
-        C11 = stress_c11[0] / strain / GPa
-        C12 = stress_c11[1] / strain / GPa
+        C11 = stress_c11[0] / strain_val / GPa
+        C12 = stress_c11[1] / strain_val / GPa
 
         # C44: Shear strain xy
         atoms_c44 = atoms.copy()  # type: ignore[no-untyped-call]
@@ -188,21 +196,22 @@ class PhysicsValidator(BaseValidator):
         c_shear = cell.copy()
 
         # Apply simple shear
-        c_shear[0, 1] += strain * cell[1, 1]
+        c_shear[0, 1] += strain_val * cell[1, 1]
         atoms_c44.set_cell(c_shear, scale_atoms=True)
         stress_c44 = atoms_c44.get_stress(voigt=True)
 
-        C44 = stress_c44[5] / strain / GPa
+        C44 = stress_c44[5] / strain_val / GPa
 
         return {"C11": abs(C11), "C12": abs(C12), "C44": abs(C44)}
 
     def check_elastic(
         self,
         atoms: Atoms,
-        strain: float = CONSTANTS.physics_elastic_strain
+        strain: float | None = None
     ) -> tuple[bool, dict[str, float]]:
         """Check elastic stability."""
-        Cij = self.calculate_elastic_constants(atoms, strain)
+        strain_val = strain if strain is not None else CONSTANTS.physics_elastic_strain
+        Cij = self.calculate_elastic_constants(atoms, strain_val)
 
         c11 = Cij.get("C11", 0.0)
         c12 = Cij.get("C12", 0.0)
@@ -219,11 +228,11 @@ _validator = PhysicsValidator()
 def check_phonons(atoms: Atoms, supercell: list[int] | None = None, tolerance: float | None = None) -> bool:
     return _validator.check_phonons(atoms, supercell, tolerance)
 
-def check_eos(atoms: Atoms, strain: float = CONSTANTS.physics_eos_strain, points: int = CONSTANTS.physics_eos_points, output_path: str = "eos.png") -> tuple[float, str]:
+def check_eos(atoms: Atoms, strain: float | None = None, points: int | None = None, output_path: str = "eos.png") -> tuple[float, str]:
     return _validator.check_eos(atoms, strain, points, output_path)
 
-def check_elastic(atoms: Atoms, strain: float = CONSTANTS.physics_elastic_strain) -> tuple[bool, dict[str, float]]:
+def check_elastic(atoms: Atoms, strain: float | None = None) -> tuple[bool, dict[str, float]]:
     return _validator.check_elastic(atoms, strain)
 
-def calculate_elastic_constants(atoms: Atoms, strain: float = CONSTANTS.physics_elastic_strain) -> dict[str, float]:
+def calculate_elastic_constants(atoms: Atoms, strain: float | None = None) -> dict[str, float]:
     return _validator.calculate_elastic_constants(atoms, strain)

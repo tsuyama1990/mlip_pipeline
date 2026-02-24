@@ -13,7 +13,7 @@ def validation_result() -> ValidationResult:
     """Fixture for validation result."""
     return ValidationResult(
         passed=True,
-        metrics={"bulk_modulus": 100.0},
+        metrics={"bulk_modulus": 100.0, "C11": 200.0},
         eos_stable=True,
         phonon_stable=True,
         elastic_stable=True,
@@ -23,9 +23,6 @@ def validation_result() -> ValidationResult:
 
 def test_report_generation(validation_result: ValidationResult, tmp_path: Path) -> None:
     """Test report generation."""
-    # Ensure template dir is found relative to the source code
-    # report.py uses Path(__file__).parent / "templates"
-
     generator = ReportGenerator()
     output_path = tmp_path / "report.html"
 
@@ -37,9 +34,19 @@ def test_report_generation(validation_result: ValidationResult, tmp_path: Path) 
     # Check for key content
     assert "Validation Report" in content
     assert "PASSED" in content
+    # Check data binding
     assert "bulk_modulus" in content
     assert "100.0" in content
+    assert "C11" in content
+    assert "200.0" in content
+    # Check artifacts
     assert "plot.png" in content
+    # Check status flags
     assert "EOS Stability" in content
     assert "Phonon Stability" in content
     assert "Elastic Stability" in content
+
+    # Basic HTML structure check
+    assert "<html>" in content or "<!DOCTYPE html>" in content
+    assert "</html>" in content
+    assert "<body>" in content

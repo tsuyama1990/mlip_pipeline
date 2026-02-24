@@ -31,8 +31,6 @@ def _validate_absolute_path(path: Path, cwd: Path, allow_temp_dirs: bool = True)
     if allow_temp_dirs:
         try:
             temp_dir = Path(tempfile.gettempdir()).resolve(strict=True)
-            # DEBUG:
-            # print(f"DEBUG: Checking {resolved} against temp {temp_dir}")
             if resolved.is_relative_to(temp_dir):
                 return resolved
         except (ValueError, OSError, RuntimeError):
@@ -88,11 +86,25 @@ def validate_safe_path(path: Path, allow_temp_dirs: bool = True) -> Path:
 
             # Re-verify containment after resolution to catch sneaky symlinks
             if candidate.is_relative_to(cwd):
-                return path # Return original relative path for convenience if safe
+                # The audit feedback requires us to check the resolved absolute path against the whitelist.
+                # Even if it looks relative to CWD, it might be a resolved symlink or just "safe".
+                # We should pass the candidate (absolute) to _validate_absolute_path to be safe.
+                # However, the previous logic was:
+                # return path # Return original relative path for convenience if safe
 
-            # If resolved path escapes CWD, fail
-            msg = f"Path {path} resolves to {candidate}, which is outside base directory {cwd}"
-            raise ValueError(msg)  # noqa: TRY301
+                # To fix the audit issue: "Path traversal protection must validate the final resolved path."
+                # We will validate the candidate against _validate_absolute_path
+                _validate_absolute_path(candidate, cwd, allow_temp_dirs=allow_temp_dirs)
+                return path
+
+            # If resolved path escapes CWD, fail (unless it matches whitelist via _validate_absolute_path)
+            # The structure of the code allows falling through to _validate_absolute_path below
+            # if we pass the absolute path. But `path` is relative here.
+
+            # Let's enforce validation on the resolved absolute path `candidate`.
+            _validate_absolute_path(candidate, cwd, allow_temp_dirs=allow_temp_dirs)
+            # If it passes, return original path
+            return path
 
         # For absolute paths, perform full validation against whitelist
         return _validate_absolute_path(path, cwd, allow_temp_dirs=allow_temp_dirs)

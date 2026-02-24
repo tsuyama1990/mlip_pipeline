@@ -29,9 +29,19 @@ class MockValidator(ValidatorInterface):
         output_dir.mkdir(parents=True, exist_ok=True)
         report_path = output_dir / "validation_report.html"
 
+        # Use configuration or defaults for mock metrics to match real structure
+        metrics = {
+            "mock": 1.0,
+            "count": count,
+            "bulk_modulus": 100.0,
+            "C11": 200.0,
+            "C12": 100.0,
+            "C44": 100.0
+        }
+
         dummy_result = ValidationResult(
             passed=True,
-            metrics={"mock": 1.0, "count": count, "bulk_modulus": 100.0},
+            metrics=metrics,
             eos_stable=True,
             phonon_stable=True,
             elastic_stable=True,
