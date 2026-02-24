@@ -896,6 +896,14 @@ class Step1DirectSamplingConfig(BaseModel):
         description="Optimization objective",
     )
 
+    @field_validator("target_points")
+    @classmethod
+    def validate_target_points(cls, v: int) -> int:
+        if v <= 0:
+            msg = "target_points must be positive"
+            raise ValueError(msg)
+        return v
+
 
 class Step2ActiveLearningConfig(BaseModel):
     """Configuration for Step 2: Active Learning."""
@@ -917,6 +925,14 @@ class Step2ActiveLearningConfig(BaseModel):
         default_factory=lambda: get_defaults()["step2_n_select"],
         description="Number of structures to select per cycle",
     )
+
+    @field_validator("cycles")
+    @classmethod
+    def validate_cycles(cls, v: int) -> int:
+        if v <= 0:
+            msg = "cycles must be positive"
+            raise ValueError(msg)
+        return v
 
 
 class Step3MaceFinetuneConfig(BaseModel):
@@ -943,6 +959,14 @@ class Step4SurrogateSamplingConfig(BaseModel):
     method: str = Field(
         default_factory=lambda: get_defaults()["step4_method"], description="Sampling method"
     )
+
+    @field_validator("target_points")
+    @classmethod
+    def validate_target_points(cls, v: int) -> int:
+        if v <= 0:
+            msg = "target_points must be positive"
+            raise ValueError(msg)
+        return v
 
 
 class Step7PacemakerFinetuneConfig(BaseModel):
@@ -992,6 +1016,14 @@ class DistillationConfig(BaseModel):
     step7_pacemaker_finetune: Step7PacemakerFinetuneConfig = Field(
         default_factory=Step7PacemakerFinetuneConfig
     )
+
+    @field_validator("pool_file")
+    @classmethod
+    def validate_pool_file(cls, v: str) -> str:
+        if not v or not v.strip():
+            msg = "pool_file cannot be empty"
+            raise ValueError(msg)
+        return v
 
 
 class ValidatorConfig(BaseModel):

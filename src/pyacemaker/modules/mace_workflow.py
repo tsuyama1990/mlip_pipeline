@@ -109,47 +109,54 @@ class MaceDistillationWorkflow:
 
     def _run_surrogate_pipeline(self, dist_config: Any, fine_tuned_potential: Potential) -> Potential:
         """Run the Surrogate Data Generation, Labeling, and Training pipeline (Steps 4-7)."""
-        # Step 4: Surrogate Data Generation
-        surrogate_structures_path = self._step4_surrogate_data_generation(
-            dist_config, fine_tuned_potential
-        )
+        try:
+            # Step 4: Surrogate Data Generation
+            surrogate_structures_path = self._step4_surrogate_data_generation(
+                dist_config, fine_tuned_potential
+            )
 
-        # Step 5: Surrogate Labeling
-        # Update mace_oracle model first!
-        if hasattr(self.mace_oracle, "update_model"):
-            self.mace_oracle.update_model(fine_tuned_potential.path)
+            # Step 5: Surrogate Labeling
+            # Update mace_oracle model first!
+            if hasattr(self.mace_oracle, "update_model"):
+                self.mace_oracle.update_model(fine_tuned_potential.path)
 
-        surrogate_dataset_path = self._step5_surrogate_labeling(surrogate_structures_path)
+            surrogate_dataset_path = self._step5_surrogate_labeling(surrogate_structures_path)
 
-        # Step 6: Pacemaker Base Training
-        base_ace_potential = self._step6_pacemaker_base_training(surrogate_dataset_path)
+            # Step 6: Pacemaker Base Training
+            base_ace_potential = self._step6_pacemaker_base_training(surrogate_dataset_path)
 
-        # Step 7: Delta Learning
-        return self._step7_delta_learning(dist_config, base_ace_potential)
+            # Step 7: Delta Learning
+            return self._step7_delta_learning(dist_config, base_ace_potential)
+        except Exception:
+            self.logger.exception("Surrogate pipeline failed")
+            raise
 
     def _step1_direct_sampling(self, dist_config: Any) -> Path:
         """Step 1: DIRECT Sampling (Entropy Maximization)."""
         self.logger.info("Step 1: DIRECT Sampling")
+        try:
+            samples_iter = self.structure_generator.generate_direct_samples(
+                n_samples=dist_config.step1_direct_sampling.target_points,
+                objective=dist_config.step1_direct_sampling.objective,
+            )
 
-        samples_iter = self.structure_generator.generate_direct_samples(
-            n_samples=dist_config.step1_direct_sampling.target_points,
-            objective=dist_config.step1_direct_sampling.objective,
-        )
+            pool_file = dist_config.pool_file
+            pool_path = self.config.project.root_dir / "data" / pool_file
 
-        pool_file = dist_config.pool_file
-        pool_path = self.config.project.root_dir / "data" / pool_file
-
-        # Stream generator to file without materializing list
-        # Uses buffered I/O internally in DatasetManager
-        save_metadata_stream(
-            self.dataset_manager,
-            samples_iter,
-            pool_path,
-            mode="wb",  # Overwrite pool
-            calculate_checksum=False,
-        )
-        self.logger.info(f"Generated pool at {pool_path}")
-        return pool_path
+            # Stream generator to file without materializing list
+            # Uses buffered I/O internally in DatasetManager
+            save_metadata_stream(
+                self.dataset_manager,
+                samples_iter,
+                pool_path,
+                mode="wb",  # Overwrite pool
+                calculate_checksum=False,
+            )
+            self.logger.info(f"Generated pool at {pool_path}")
+            return pool_path
+        except Exception:
+            self.logger.exception("Step 1 (Direct Sampling) failed")
+            raise
 
     def _step2_active_learning_loop(
         self, dist_config: Any, pool_path: Path
@@ -256,95 +263,108 @@ class MaceDistillationWorkflow:
     ) -> Path:
         """Step 4: Surrogate Data Generation."""
         self.logger.info("Step 4: Surrogate Data Generation")
+        try:
+            seeds = self._get_exploration_seeds(n_seeds=5)
+            surrogate_iter = self.dynamics_engine.run_exploration(fine_tuned_potential, seeds)
 
-        seeds = self._get_exploration_seeds(n_seeds=5)
-        surrogate_iter = self.dynamics_engine.run_exploration(fine_tuned_potential, seeds)
+            surrogate_file = dist_config.surrogate_file
+            surrogate_dataset_path = self.config.project.root_dir / "data" / surrogate_file
 
-        surrogate_file = dist_config.surrogate_file
-        surrogate_dataset_path = self.config.project.root_dir / "data" / surrogate_file
+            limited_iter = islice(
+                surrogate_iter, dist_config.step4_surrogate_sampling.target_points
+            )
 
-        limited_iter = islice(
-            surrogate_iter, dist_config.step4_surrogate_sampling.target_points
-        )
-
-        save_metadata_stream(
-            self.dataset_manager,
-            limited_iter,
-            surrogate_dataset_path,
-            mode="wb",  # Overwrite surrogate pool
-            calculate_checksum=False,
-        )
-        self.logger.info(f"Generated surrogate dataset at {surrogate_dataset_path}")
-        return surrogate_dataset_path
+            save_metadata_stream(
+                self.dataset_manager,
+                limited_iter,
+                surrogate_dataset_path,
+                mode="wb",  # Overwrite surrogate pool
+                calculate_checksum=False,
+            )
+            self.logger.info(f"Generated surrogate dataset at {surrogate_dataset_path}")
+            return surrogate_dataset_path
+        except Exception:
+            self.logger.exception("Step 4 (Surrogate Generation) failed")
+            raise
 
     def _step5_surrogate_labeling(
         self, surrogate_path: Path
     ) -> Path:
         """Step 5: Surrogate Labeling."""
         self.logger.info("Step 5: Surrogate Labeling")
+        try:
+            # Use MACE Oracle for labeling
+            mace_labeler = self.mace_oracle
+            # Ensure it has compute_batch (inherited from Oracle/BaseOracle)
+            if not isinstance(mace_labeler, Oracle):
+                msg = "MACE Oracle does not support labeling (compute_batch)."
+                raise TypeError(msg)
 
-        # Use MACE Oracle for labeling
-        mace_labeler = self.mace_oracle
-        # Ensure it has compute_batch (inherited from Oracle/BaseOracle)
-        if not isinstance(mace_labeler, Oracle):
-            msg = "MACE Oracle does not support labeling (compute_batch)."
-            raise TypeError(msg)
+            dist_config = self.config.distillation
 
-        dist_config = self.config.distillation
+            def load_stream() -> Iterator[StructureMetadata]:
+                for atoms in self.dataset_manager.load_iter(surrogate_path):
+                    yield atoms_to_metadata(atoms)
 
-        def load_stream() -> Iterator[StructureMetadata]:
-            for atoms in self.dataset_manager.load_iter(surrogate_path):
-                yield atoms_to_metadata(atoms)
+            labeled_surrogate_iter = mace_labeler.compute_batch(load_stream())
 
-        labeled_surrogate_iter = mace_labeler.compute_batch(load_stream())
+            surrogate_dataset_file = dist_config.surrogate_dataset_file
+            surrogate_dataset_path = self.config.project.root_dir / "data" / surrogate_dataset_file
 
-        surrogate_dataset_file = dist_config.surrogate_dataset_file
-        surrogate_dataset_path = self.config.project.root_dir / "data" / surrogate_dataset_file
-
-        save_metadata_stream(
-            self.dataset_manager,
-            labeled_surrogate_iter,
-            surrogate_dataset_path,
-            mode="wb",  # Overwrite labeled dataset
-            calculate_checksum=False,
-        )
-        return surrogate_dataset_path
+            save_metadata_stream(
+                self.dataset_manager,
+                labeled_surrogate_iter,
+                surrogate_dataset_path,
+                mode="wb",  # Overwrite labeled dataset
+                calculate_checksum=False,
+            )
+            return surrogate_dataset_path
+        except Exception:
+            self.logger.exception("Step 5 (Surrogate Labeling) failed")
+            raise
 
     def _step6_pacemaker_base_training(
         self, surrogate_dataset_path: Path
     ) -> Potential:
         """Step 6: Pacemaker Base Training."""
         self.logger.info("Step 6: Pacemaker Base Training")
+        try:
+            def surrogate_train_stream() -> Iterator[StructureMetadata]:
+                yield from (
+                    atoms_to_metadata(a)
+                    for a in self.dataset_manager.load_iter(surrogate_dataset_path)
+                )
 
-        def surrogate_train_stream() -> Iterator[StructureMetadata]:
-            yield from (
-                atoms_to_metadata(a)
-                for a in self.dataset_manager.load_iter(surrogate_dataset_path)
-            )
-
-        return self.trainer.train(surrogate_train_stream())
+            return self.trainer.train(surrogate_train_stream())
+        except Exception:
+            self.logger.exception("Step 6 (Pacemaker Base Training) failed")
+            raise
 
     def _step7_delta_learning(
         self, dist_config: Any, base_potential: Potential
     ) -> Potential:
         """Step 7: Delta Learning (Fine-tuning with DFT)."""
         self.logger.info("Step 7: Delta Learning (Fine-tuning with DFT)")
-        if dist_config.step7_pacemaker_finetune.enable:
-            def dft_train_stream() -> Iterator[StructureMetadata]:
-                yield from (
-                    atoms_to_metadata(a)
-                    for a in self.dataset_manager.load_iter(self.dataset_path)
+        try:
+            if dist_config.step7_pacemaker_finetune.enable:
+                def dft_train_stream() -> Iterator[StructureMetadata]:
+                    yield from (
+                        atoms_to_metadata(a)
+                        for a in self.dataset_manager.load_iter(self.dataset_path)
+                    )
+
+                weight_dft = dist_config.step7_pacemaker_finetune.weight_dft
+                self.logger.info(f"Using DFT weight: {weight_dft}")
+
+                return self.trainer.train(
+                    dft_train_stream(),
+                    initial_potential=base_potential,
+                    weight_dft=weight_dft,
                 )
-
-            weight_dft = dist_config.step7_pacemaker_finetune.weight_dft
-            self.logger.info(f"Using DFT weight: {weight_dft}")
-
-            return self.trainer.train(
-                dft_train_stream(),
-                initial_potential=base_potential,
-                weight_dft=weight_dft,
-            )
-        return base_potential
+            return base_potential
+        except Exception:
+            self.logger.exception("Step 7 (Delta Learning) failed")
+            raise
 
     def _get_exploration_seeds(self, n_seeds: int = 20) -> list[StructureMetadata]:
         """Get seed structures for exploration."""

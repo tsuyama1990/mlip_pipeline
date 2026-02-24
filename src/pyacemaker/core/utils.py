@@ -358,6 +358,8 @@ def stream_metadata_to_atoms(metadata_iter: Iterable[StructureMetadata]) -> Iter
 
     """
     for metadata in metadata_iter:
+        # Validate data integrity during streaming
+        validate_structure_integrity(metadata)
         yield metadata_to_atoms(metadata)
 
 
