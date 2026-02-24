@@ -531,29 +531,14 @@ class MaceConfig(BaseModel):
         path = Path(v)
         # Security check: ALWAYS valid path structure and traversal prevention
         try:
-            validate_safe_path(path)
-
-            # Enforce absolute paths for security (except abstract names like 'medium')
-            if not path.is_absolute():
-                # We could resolve it, but that depends on CWD.
-                # Safer to require user to provide absolute path or rely on project root resolution downstream.
-                # However, many users provide relative. We will resolve and check.
-                resolved = path.resolve()
-                cls._check_absolute_path(resolved, v)
+            # validate_safe_path performs resolution and whitelist checking.
+            # We return the resolved path string to ensure downstream usage is safe.
+            safe_path = validate_safe_path(path)
+            return str(safe_path.resolve())
 
         except (ValueError, RuntimeError) as e:
             msg = f"Invalid model path structure: {e}"
             raise ValueError(msg) from e
-
-        # Return resolved absolute path
-        return str(resolved) if 'resolved' in locals() else str(path)
-
-    @staticmethod
-    def _check_absolute_path(resolved: Path, original: str) -> None:
-        """Verify resolved path is absolute."""
-        if not resolved.is_absolute():
-             msg = f"Model path must resolve to an absolute path: {original}"
-             raise ValueError(msg)
 
     @field_validator("device")
     @classmethod
@@ -1034,6 +1019,18 @@ class DistillationConfig(BaseModel):
     )
     step7_pacemaker_finetune: Step7PacemakerFinetuneConfig = Field(
         default_factory=Step7PacemakerFinetuneConfig
+    )
+
+    # Workflow Performance Settings
+    batch_size: int = Field(
+        default=100,
+        ge=1,
+        description="General batch size for processing structures"
+    )
+    write_buffer_size: int = Field(
+        default=1000,
+        ge=1,
+        description="Buffer size for writing labeled structures to disk"
     )
 
     @field_validator("pool_file")

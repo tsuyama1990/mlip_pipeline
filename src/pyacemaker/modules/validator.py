@@ -5,7 +5,9 @@ from collections.abc import Iterable
 from pyacemaker.core.base import Metrics, ModuleResult
 from pyacemaker.core.interfaces import Validator as ValidatorInterface
 from pyacemaker.domain_models.models import Potential, StructureMetadata
+from pyacemaker.domain_models.validator import ValidationResult
 from pyacemaker.validator.manager import ValidatorManager
+from pyacemaker.validator.report import ReportGenerator
 
 
 class MockValidator(ValidatorInterface):
@@ -17,10 +19,35 @@ class MockValidator(ValidatorInterface):
 
     def validate(self, potential: Potential, test_set: Iterable[StructureMetadata]) -> ModuleResult:
         """Validate potential."""
-        # Validate consumes the test_set stream
+        # Consumes the stream to count items
         count = 0
         for _ in test_set:
             count += 1
+
+        # Generate Mock Report for UAT with populated metrics
+        output_dir = self.config.project.root_dir / "validation"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        report_path = output_dir / "validation_report.html"
+
+        metrics = {
+            "mock": 1.0,
+            "count": count,
+            "bulk_modulus": 100.0,
+            "C11": 200.0,
+            "C12": 100.0,
+            "C44": 100.0
+        }
+
+        dummy_result = ValidationResult(
+            passed=True,
+            metrics=metrics,
+            eos_stable=True,
+            phonon_stable=True,
+            elastic_stable=True,
+            artifacts={"mock_plot": "mock.png"}
+        )
+        ReportGenerator().generate(dummy_result, report_path)
+
         return ModuleResult(
             status="success",
             metrics=Metrics.model_validate({"mock": 1.0, "count": count}),
@@ -34,8 +61,6 @@ class Validator(ValidatorInterface):
     def run(self) -> ModuleResult:
         """Run the validator."""
         self.logger.info("Running Validator")
-        # In this context, run() is usually not called directly or needs args.
-        # Just return success.
         return ModuleResult(status="success")
 
     def validate(self, potential: Potential, test_set: Iterable[StructureMetadata]) -> ModuleResult:
@@ -47,21 +72,20 @@ class Validator(ValidatorInterface):
         min_e_pa = float("inf")
         count = 0
 
-        # Optimization: Single pass scan
-        # We stick to full scan for now as it is strictly O(1) memory (1 structure held).
+        # Optimization: We need ONE good reference structure (ground state) for physics checks.
+        # We iterate to find the minimum energy structure but avoid storing everything.
+        # This is O(N) scan with O(1) memory.
         for s in test_set:
             count += 1
+            # Check if this structure is better than current best
             if s.features.get("atoms"):
                 atoms = s.features["atoms"]
-                # Select reference structure (lowest energy/atom from DFT/Source)
-                # s.energy should be the ground truth energy (from DFT)
                 if s.energy is not None and len(atoms) > 0:
                     e_pa = s.energy / len(atoms)
                     if e_pa < min_e_pa:
                         min_e_pa = e_pa
                         reference_structure = atoms
                 elif reference_structure is None:
-                    # Fallback to first structure seen if no better candidate yet
                     reference_structure = atoms
 
         if count == 0:
@@ -83,7 +107,7 @@ class Validator(ValidatorInterface):
         output_dir = self.config.project.root_dir / "validation"
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Run physics validation
+        # Run physics validation on the best candidate
         validation_result = manager.validate(
             potential=potential,
             structure=reference_structure,
@@ -92,10 +116,6 @@ class Validator(ValidatorInterface):
 
         # Merge metrics
         metrics_dict = validation_result.metrics.copy()
-
-        # Calculate RMSE (placeholder - future optimization would use batch predictor here)
-        metrics_dict["rmse_energy"] = 0.0
-        metrics_dict["rmse_forces"] = 0.0
         metrics_dict["count"] = count
 
         status = "success" if validation_result.passed else "failed"

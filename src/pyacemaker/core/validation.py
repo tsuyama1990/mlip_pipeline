@@ -1,11 +1,12 @@
 """Validation utilities for PYACEMAKER."""
 
 import re
+import tempfile
 from pathlib import Path
 from typing import Any
 
 
-def _validate_absolute_path(path: Path, cwd: Path) -> Path:
+def _validate_absolute_path(path: Path, cwd: Path, allow_temp_dirs: bool = True) -> Path:
     """Validate an absolute path against CWD and the allowed-paths whitelist."""
     from pyacemaker.core.config import CONSTANTS
 
@@ -26,6 +27,16 @@ def _validate_absolute_path(path: Path, cwd: Path) -> Path:
     if resolved.is_relative_to(cwd):
         return resolved
 
+    # Check against system temp dir if allowed
+    if allow_temp_dirs:
+        try:
+            temp_dir = Path(tempfile.gettempdir()).resolve(strict=True)
+            if resolved.is_relative_to(temp_dir):
+                return resolved
+        except (ValueError, OSError, RuntimeError):
+            # If temp dir resolution fails, ignore and proceed to whitelist check
+            pass
+
     # Check against explicit whitelists (e.g. for MACE cache or external datasets)
     for allowed in CONSTANTS.allowed_potential_paths:
         try:
@@ -41,7 +52,7 @@ def _validate_absolute_path(path: Path, cwd: Path) -> Path:
     raise ValueError(msg)
 
 
-def validate_safe_path(path: Path) -> Path:
+def validate_safe_path(path: Path, allow_temp_dirs: bool = True) -> Path:
     """Validate that path is safe (within CWD or whitelisted).
 
     This function defends against path traversal attacks by resolving symlinks
@@ -74,15 +85,14 @@ def validate_safe_path(path: Path) -> Path:
             candidate = (cwd / path).resolve()
 
             # Re-verify containment after resolution to catch sneaky symlinks
-            if candidate.is_relative_to(cwd):
-                return path # Return original relative path for convenience if safe
-
-            # If resolved path escapes CWD, fail
-            msg = f"Path {path} resolves to {candidate}, which is outside base directory {cwd}"
-            raise ValueError(msg)  # noqa: TRY301
+            # AND validate against whitelist using _validate_absolute_path (Security Fix)
+            # This ensures that even if it looks like it's in CWD, the resolved path is also safe
+            # and follows all whitelist rules.
+            _validate_absolute_path(candidate, cwd, allow_temp_dirs=allow_temp_dirs)
+            return path
 
         # For absolute paths, perform full validation against whitelist
-        return _validate_absolute_path(path, cwd)
+        return _validate_absolute_path(path, cwd, allow_temp_dirs=allow_temp_dirs)
 
     except (ValueError, RuntimeError, OSError) as e:
         # Wrap all path errors in ValueError for consistent API handling
