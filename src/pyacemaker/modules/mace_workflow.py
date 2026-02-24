@@ -3,7 +3,7 @@ from itertools import islice
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from ase.io import write
+from ase.io import iread, write
 from loguru import logger
 
 from pyacemaker.core.config import CONSTANTS, DistillationConfig
@@ -277,13 +277,16 @@ class MaceDistillationWorkflow:
 
             labeled_data_path = Path(str(labeled_data_path_str))
 
-            output_pot_path = self.pacemaker_trainer.train(
-                training_data=labeled_data_path,
-                test_data=None,
-                run_dir=self.work_dir / "pacemaker_run"
+            def training_stream() -> Iterator[Any]:
+                # Load from extxyz (output of Step 5)
+                for atoms in iread(labeled_data_path, format="extxyz"):
+                    yield atoms_to_metadata(atoms)
+
+            output_pot = self.pacemaker_trainer.train(
+                dataset=training_stream(),
             )
 
-            state.artifacts["pacemaker_potential_path"] = str(output_pot_path)
+            state.artifacts["pacemaker_potential_path"] = str(output_pot.path)
             state.current_step = 7
         except Exception as e:
             logger.error(f"Step 6 failed: {e}")

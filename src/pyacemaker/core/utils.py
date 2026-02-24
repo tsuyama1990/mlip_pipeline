@@ -329,8 +329,8 @@ def metadata_to_atoms(metadata: StructureMetadata) -> "Atoms":
 
             atoms.calc = SinglePointCalculator(atoms, **results)  # type: ignore[no-untyped-call]
 
-            # Also store in info for redundancy
-            atoms.info["energy"] = metadata.energy
+            # Also store in info for redundancy (Removed to prevent extxyz write collision)
+            # atoms.info["energy"] = metadata.energy
 
         except ImportError:
             logger.warning("ASE SinglePointCalculator not available.")

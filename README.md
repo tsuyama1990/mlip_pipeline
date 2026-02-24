@@ -104,14 +104,14 @@ To run the master tutorial which simulates the entire pipeline (End-to-End):
 
 ```bash
 # Run in Mock Mode (fast verification)
-MOCK_MODE=true python tutorials/UAT_AND_TUTORIAL.py
+PYACEMAKER_MODE=MOCK marimo run tutorials/UAT_AND_TUTORIAL.py
 ```
 
-This script will:
-1.  Generate synthetic training data.
-2.  Train a potential (mocked).
+This interactive notebook will:
+1.  Generate synthetic training data (SN2 Reaction Pathway).
+2.  Train a potential (Mock or Real MACE distillation).
 3.  Perform physics validation (EOS, Phonons).
-4.  Generate a `validation_report.html` in the output directory.
+4.  Visualize the results and artifacts.
 
 ### Production Run
 

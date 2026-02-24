@@ -194,7 +194,6 @@ class Orchestrator(IOrchestrator):
             pacemaker_trainer=self.pacemaker_trainer,
             mace_trainer=self.mace_trainer,  # type: ignore
             work_dir=self.base_dir / "distillation_work",
-            batch_size=batch_size,
         )
 
     def _run_mace_distillation(self) -> ModuleResult:
