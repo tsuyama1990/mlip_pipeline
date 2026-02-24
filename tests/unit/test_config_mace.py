@@ -26,7 +26,8 @@ def test_mace_config_valid() -> None:
         default_dtype="float32",
         batch_size=64,
     )
-    assert config.model_path == "custom.model"
+    # Model path is resolved to absolute
+    assert config.model_path.endswith("custom.model")
     assert config.device == "cuda"
     assert config.default_dtype == "float32"
     assert config.batch_size == 64
@@ -67,7 +68,7 @@ def test_oracle_config_with_mace() -> None:
 
     oracle_config = OracleConfig(dft=dft_config, mace=mace_config)
     assert oracle_config.mace is not None
-    assert oracle_config.mace.model_path == "test.model"
+    assert oracle_config.mace.model_path.endswith("test.model")
 
 
 def test_oracle_config_without_mace() -> None:

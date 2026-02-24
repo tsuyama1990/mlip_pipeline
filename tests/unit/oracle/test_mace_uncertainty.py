@@ -69,19 +69,28 @@ def test_compute_uncertainty_validation_call(mock_config: PYACEMAKERConfig) -> N
     atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
     structures = [StructureMetadata(features={"atoms": atoms}, status=StructureStatus.NEW)]
 
-    with patch("pyacemaker.modules.oracle.validate_structure_integrity") as mock_validate:
+    with patch("pyacemaker.oracle.mace_oracle.validate_structure_integrity") as mock_validate:
         list(oracle.compute_uncertainty(structures))
         mock_validate.assert_called()
 
 
 def test_compute_batch_validation_call(mock_config: PYACEMAKERConfig) -> None:
     """Verify validate_structure_integrity is called in compute_batch."""
-    oracle = MaceSurrogateOracle(mock_config)
+    # Must disable mock mode to trigger _prepare_batch
+    mock_config.oracle.mock = False
+    mock_config.oracle.mace.mock = False
 
-    atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
-    structures = [StructureMetadata(features={"atoms": atoms}, status=StructureStatus.NEW)]
+    with patch("pyacemaker.oracle.mace_oracle.MaceManager") as MockManager, \
+         patch("pyacemaker.oracle.mace_oracle.validate_structure_integrity") as mock_validate:
 
-    with patch("pyacemaker.modules.oracle.validate_structure_integrity") as mock_validate:
+        # Mock compute_batch of manager to avoid side effects
+        MockManager.return_value.compute_batch.return_value = []
+
+        oracle = MaceSurrogateOracle(mock_config)
+
+        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        structures = [StructureMetadata(features={"atoms": atoms}, status=StructureStatus.NEW)]
+
         list(oracle.compute_batch(structures))
         mock_validate.assert_called()
 
@@ -93,7 +102,7 @@ def test_batch_processing_optimization(mock_config: PYACEMAKERConfig) -> None:
     assert mock_config.oracle.mace is not None
     mock_config.oracle.mace.mock = False
 
-    with patch("pyacemaker.modules.oracle.MaceManager") as MockManager:
+    with patch("pyacemaker.oracle.mace_oracle.MaceManager") as MockManager:
         mock_instance = MockManager.return_value
         # Return uncertainty for batch
         mock_instance.compute_uncertainty.side_effect = lambda atoms_list: [0.1] * len(atoms_list)

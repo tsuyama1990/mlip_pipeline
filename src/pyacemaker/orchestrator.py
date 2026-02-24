@@ -15,6 +15,7 @@ from pyacemaker.core.interfaces import (
     Oracle,
     StructureGenerator,
     Trainer,
+    UncertaintyModel,
 )
 from pyacemaker.core.interfaces import (
     Validator as ValidatorInterface,
@@ -47,6 +48,7 @@ class Orchestrator(IOrchestrator):
         dynamics_engine: DynamicsEngine | None = None,
         validator: Validator | None = None,
         mace_trainer: Trainer | None = None,
+        mace_oracle: UncertaintyModel | None = None,
     ) -> None:
         """Initialize the orchestrator and sub-modules."""
         super().__init__(config)
@@ -61,13 +63,13 @@ class Orchestrator(IOrchestrator):
 
         # Initialize MaceTrainer if needed for distillation
         self.mace_trainer: Trainer | None = mace_trainer
-        # Always initialize mace_trainer if MACE distillation is enabled, or if it was requested
-        # Even if not enabled, we might want it available if manually triggered
         if not self.mace_trainer and config.distillation.enable_mace_distillation:
             self.mace_trainer = ModuleFactory.create_mace_trainer(config)
 
-        # Explicitly expose mace_trainer as a public attribute for tests
-        # It might be None if distillation is disabled and not provided
+        # Initialize MaceOracle if needed for distillation
+        self.mace_oracle: UncertaintyModel | None = mace_oracle
+        if not self.mace_oracle and config.distillation.enable_mace_distillation:
+            self.mace_oracle = ModuleFactory.create_mace_oracle(config)
 
         self.dynamics_engine: DynamicsEngine = (
             dynamics_engine or ModuleFactory.create_dynamics_engine(config)
@@ -176,8 +178,10 @@ class Orchestrator(IOrchestrator):
     def _run_mace_distillation(self) -> ModuleResult:
         """Run the 7-Step MACE Distillation Workflow."""
         if not self.mace_trainer:
-            # Should be caught during init/validation but safe check
             msg = "MACE Trainer not initialized for MACE workflow."
+            raise RuntimeError(msg)
+        if not self.mace_oracle:
+            msg = "MACE Oracle not initialized for MACE workflow."
             raise RuntimeError(msg)
 
         # Inject ActiveLearner
@@ -188,6 +192,7 @@ class Orchestrator(IOrchestrator):
             dataset_manager=self.dataset_manager,
             dataset_path=self.dataset_path,
             oracle=self.oracle,
+            mace_oracle=self.mace_oracle,
             trainer=self.trainer,
             mace_trainer=self.mace_trainer,
             dynamics_engine=self.dynamics_engine,

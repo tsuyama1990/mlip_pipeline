@@ -20,10 +20,11 @@ from pyacemaker.modules.trainer import MaceTrainer, PacemakerTrainer
 
 
 @pytest.fixture
-def mock_config() -> MagicMock:
+def mock_config(tmp_path: Path) -> MagicMock:
     """Create a mock config."""
     config = MagicMock()
     config.version = "1.0.0"
+    config.project.root_dir = tmp_path
     config.trainer = TrainerConfig(
         potential_type="pace",
         mock=False,
@@ -60,14 +61,19 @@ def mock_dataset() -> list[StructureMetadata]:
 
 
 def test_pacemaker_trainer_passes_kwargs(
-    mock_config: MagicMock, mock_dataset: list[StructureMetadata]
+    mock_config: MagicMock, mock_dataset: list[StructureMetadata], tmp_path: Path
 ) -> None:
     """Test PacemakerTrainer passes kwargs (e.g. weight_dft) to wrapper."""
-    with patch("pyacemaker.modules.trainer.PacemakerWrapper") as MockWrapper, \
-         patch("pyacemaker.modules.trainer.DatasetManager") as MockDM:
+    with patch("pyacemaker.trainer.pacemaker.PacemakerWrapper") as MockWrapper, \
+         patch("pyacemaker.trainer.pacemaker.DatasetManager") as MockDM, \
+         patch.object(PacemakerTrainer, "_generate_input_yaml") as MockGenYaml:
 
         wrapper_instance = MockWrapper.return_value
-        wrapper_instance.train.return_value = Path("output.yace")
+        # Use existing file for return value
+        output_yace = tmp_path / "output.yace"
+        output_yace.touch()
+        wrapper_instance.train_from_input.return_value = output_yace
+        MockGenYaml.return_value = Path("input.yaml")
 
         # Make save_iter consume iterator so stats are updated
         def side_effect_save_iter(iterator: Any, *args: Any, **kwargs: Any) -> None:
@@ -81,10 +87,13 @@ def test_pacemaker_trainer_passes_kwargs(
         # Call train with extra kwarg
         trainer.train(mock_dataset, weight_dft=10.0, extra_param="test")
 
-        # Verify wrapper.train called with correct params
-        args, kwargs = wrapper_instance.train.call_args
-        params = args[2] # 3rd arg is params
+        # Verify _generate_input_yaml called with correct params
+        # Mock replaces method, so self is not passed unless autospec=True
+        # args[0] is params dict
+        args, _ = MockGenYaml.call_args
+        params = args[0]
 
+        # weight_dft is in params because we updated params with kwargs
         assert "weight_dft" in params
         assert params["weight_dft"] == 10.0
         assert "extra_param" in params
@@ -92,14 +101,16 @@ def test_pacemaker_trainer_passes_kwargs(
 
 
 def test_mace_trainer_passes_kwargs_and_epochs(
-    mock_config: MagicMock, mock_dataset: list[StructureMetadata]
+    mock_config: MagicMock, mock_dataset: list[StructureMetadata], tmp_path: Path
 ) -> None:
     """Test MaceTrainer passes kwargs and maps epochs correctly."""
     with patch("pyacemaker.trainer.mace_trainer.MaceManager") as MockManager, \
          patch("pyacemaker.trainer.mace_trainer.DatasetManager"):
 
         manager_instance = MockManager.return_value
-        manager_instance.train.return_value = Path("output.model")
+        output_path = tmp_path / "output.model"
+        output_path.touch()
+        manager_instance.train.return_value = output_path
 
         trainer = MaceTrainer(mock_config)
 
@@ -126,8 +137,8 @@ def test_pacemaker_trainer_empty_dataset(
     mock_config: MagicMock
 ) -> None:
     """Test PacemakerTrainer handles empty dataset correctly."""
-    with patch("pyacemaker.modules.trainer.PacemakerWrapper"), \
-         patch("pyacemaker.modules.trainer.DatasetManager") as MockDM:
+    with patch("pyacemaker.trainer.pacemaker.PacemakerWrapper"), \
+         patch("pyacemaker.trainer.pacemaker.DatasetManager") as MockDM:
 
         # side effect to simulate empty iteration
         MockDM.return_value.save_iter.side_effect = lambda it, *a, **k: list(it)
@@ -139,14 +150,16 @@ def test_pacemaker_trainer_empty_dataset(
 
 
 def test_mace_trainer_empty_dataset(
-    mock_config: MagicMock
+    mock_config: MagicMock, tmp_path: Path
 ) -> None:
     """Test MaceTrainer handles empty dataset without crashing (save_iter handles it)."""
     with patch("pyacemaker.trainer.mace_trainer.MaceManager") as MockManager, \
          patch("pyacemaker.trainer.mace_trainer.DatasetManager"):
 
         manager_instance = MockManager.return_value
-        manager_instance.train.return_value = Path("output.model")
+        output_path = tmp_path / "output.model"
+        output_path.touch()
+        manager_instance.train.return_value = output_path
 
         trainer = MaceTrainer(mock_config)
 
@@ -157,14 +170,16 @@ def test_mace_trainer_empty_dataset(
 
 
 def test_pacemaker_trainer_select_active_set(
-    mock_config: MagicMock, mock_dataset: list[StructureMetadata]
+    mock_config: MagicMock, mock_dataset: list[StructureMetadata], tmp_path: Path
 ) -> None:
     """Test PacemakerTrainer select_active_set."""
-    with patch("pyacemaker.modules.trainer.PacemakerWrapper") as MockWrapper, \
-         patch("pyacemaker.modules.trainer.DatasetManager") as MockDM:
+    with patch("pyacemaker.trainer.pacemaker.PacemakerWrapper") as MockWrapper, \
+         patch("pyacemaker.trainer.pacemaker.DatasetManager") as MockDM:
 
         wrapper = MockWrapper.return_value
-        wrapper.select_active_set.return_value = Path("selected.pckl.gzip")
+        selected_path = tmp_path / "selected.pckl.gzip"
+        selected_path.touch()
+        wrapper.select_active_set.return_value = selected_path
 
         # Mock load_iter to return empty list or some atoms with uuid
         mock_atoms = NonCallableMagicMock()
@@ -181,9 +196,10 @@ def test_pacemaker_trainer_select_active_set(
 def test_mace_trainer_select_active_set_raises(
     mock_config: MagicMock, mock_dataset: list[StructureMetadata]
 ) -> None:
-    """Test MaceTrainer select_active_set raises NotImplementedError."""
+    """Test MaceTrainer select_active_set returns dummy set."""
     with patch("pyacemaker.trainer.mace_trainer.MaceManager"):
         trainer = MaceTrainer(mock_config)
 
-        with pytest.raises(NotImplementedError):
-            trainer.select_active_set(mock_dataset, n_select=5)
+        active_set = trainer.select_active_set(mock_dataset, n_select=5)
+        assert len(active_set.structure_ids) == 0
+        assert active_set.selection_criteria == "external_mace_al"

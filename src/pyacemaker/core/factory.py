@@ -8,6 +8,7 @@ from pyacemaker.core.interfaces import (
     Oracle,
     StructureGenerator,
     Trainer,
+    UncertaintyModel,
     Validator,
 )
 from pyacemaker.modules.dynamics_engine import (
@@ -20,6 +21,7 @@ from pyacemaker.modules.structure_generator import (
     AdaptiveStructureGenerator,
     RandomStructureGenerator,
 )
+from pyacemaker.modules.validator import MockValidator
 from pyacemaker.modules.validator import Validator as ProductionValidator
 from pyacemaker.oracle.mace_oracle import MaceSurrogateOracle
 from pyacemaker.trainer.mace_trainer import MaceTrainer
@@ -41,12 +43,17 @@ class ModuleFactory:
 
     @staticmethod
     def create_oracle(config: PYACEMAKERConfig) -> Oracle:
-        """Create an oracle instance."""
-        if config.oracle.mace:
-            return MaceSurrogateOracle(config)
+        """Create the primary oracle instance (DFT or Mock)."""
         if config.oracle.mock:
             return MockOracle(config)
+        # Default to DFT Oracle for ground truth
         return DFTOracle(config)
+
+    @staticmethod
+    def create_mace_oracle(config: PYACEMAKERConfig) -> UncertaintyModel:
+        """Create a MACE surrogate oracle instance."""
+        # This is used for uncertainty and surrogate labeling
+        return MaceSurrogateOracle(config)
 
     @staticmethod
     def create_trainer(config: PYACEMAKERConfig) -> Trainer:
@@ -71,9 +78,5 @@ class ModuleFactory:
     def create_validator(config: PYACEMAKERConfig) -> Validator:
         """Create a validator instance."""
         if config.oracle.mock:
-            # Lazy import to avoid potential circular dependencies if any
-            # and because MockValidator is specifically for testing contexts
-            from pyacemaker.modules.validator import MockValidator
-
             return MockValidator(config)
         return ProductionValidator(config)

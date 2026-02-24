@@ -1,8 +1,11 @@
 """Pacemaker Wrapper."""
 
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
+
+from pyacemaker.core.validation import validate_safe_path
 
 
 class PacemakerWrapper:
@@ -14,6 +17,10 @@ class PacemakerWrapper:
             msg = f"Dataset path does not exist: {dataset_path}"
             raise FileNotFoundError(msg)
 
+        # Validate safety
+        validate_safe_path(dataset_path)
+        validate_safe_path(output_dir)
+
         if not output_dir.exists():
             output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -22,9 +29,10 @@ class PacemakerWrapper:
 
         Relies on subprocess.run(shell=False) for safety of values.
         Validates keys to ensure they are simple flags.
+        Checks values for control characters to prevent command injection exploits.
         """
-        # Validate key (flags) to be safe
-        if not key.replace("_", "").isalnum():
+        # Validate key (flags) to be safe (alphanumeric/underscore/hyphen only)
+        if not re.match(r"^[a-zA-Z0-9_\-]+$", key):
             msg = f"Invalid parameter key: {key}"
             raise ValueError(msg)
 
@@ -36,10 +44,20 @@ class PacemakerWrapper:
         if isinstance(value, tuple | list):
             args = [cli_arg]
             for item in value:
-                args.append(str(item))
+                val_str = str(item)
+                # Check for control characters
+                if re.search(r"[\x00-\x1f]", val_str):
+                     msg = f"Invalid control characters in parameter value: {val_str!r}"
+                     raise ValueError(msg)
+                args.append(val_str)
             return args
 
-        return [cli_arg, str(value)]
+        val_str = str(value)
+        if re.search(r"[\x00-\x1f]", val_str):
+             msg = f"Invalid control characters in parameter value: {val_str!r}"
+             raise ValueError(msg)
+
+        return [cli_arg, val_str]
 
     def train(
         self,
@@ -60,6 +78,11 @@ class PacemakerWrapper:
             Path to the trained potential file.
 
         """
+        validate_safe_path(dataset_path)
+        validate_safe_path(output_dir)
+        if initial_potential:
+            validate_safe_path(initial_potential)
+
         self._validate_paths(dataset_path, output_dir)
 
         cmd = ["pace_train"]
@@ -86,16 +109,27 @@ class PacemakerWrapper:
         # Return the path to the generated potential
         return output_dir / "output_potential.yace"
 
-    def train_from_input(self, input_file: Path, output_dir: Path) -> Path:
+    def train_from_input(
+        self,
+        input_file: Path,
+        output_dir: Path,
+        initial_potential: Path | None = None
+    ) -> Path:
         """Run pace_train with input.yaml.
 
         Args:
             input_file: Path to input.yaml
             output_dir: Output directory (where potential.yace is expected to be)
+            initial_potential: Optional initial potential for fine-tuning
 
         Returns:
             Path to the trained potential file.
         """
+        validate_safe_path(input_file)
+        validate_safe_path(output_dir)
+        if initial_potential:
+            validate_safe_path(initial_potential)
+
         if not input_file.exists():
             msg = f"Input file does not exist: {input_file}"
             raise FileNotFoundError(msg)
@@ -104,6 +138,12 @@ class PacemakerWrapper:
             output_dir.mkdir(parents=True, exist_ok=True)
 
         cmd = ["pace_train", str(input_file)]
+
+        if initial_potential:
+            if not initial_potential.exists():
+                msg = f"Initial potential path does not exist: {initial_potential}"
+                raise FileNotFoundError(msg)
+            cmd.extend(["--initial-potential", str(initial_potential)])
 
         log_path = output_dir / "pace_train.log"
         with log_path.open("w") as log_file:
@@ -120,16 +160,6 @@ class PacemakerWrapper:
             )
 
         # Return the path to the generated potential
-        # Note: Pacemaker input.yaml usually specifies output file name.
-        # We assume standard output or check where it went.
-        # But commonly it produces potential.yace in CWD or specified output.
-        # If input.yaml specifies output path relative to CWD, we need to know it.
-        # We assume for now it is "potential.yace" in the CWD of execution?
-        # subprocess.run uses default CWD unless specified.
-        # If input.yaml has paths, they are relative to CWD.
-        # We should probably run in output_dir or ensure input.yaml paths are absolute.
-        # But input_file is passed as argument.
-
         return output_dir / "potential.yace"
 
     def select_active_set(self, candidates_path: Path, num_select: int, output_path: Path) -> Path:
@@ -145,6 +175,9 @@ class PacemakerWrapper:
 
         """
         # Validate inputs strictly even here
+        validate_safe_path(candidates_path)
+        validate_safe_path(output_path)
+
         if not candidates_path.exists():
             msg = f"Candidates path does not exist: {candidates_path}"
             raise FileNotFoundError(msg)

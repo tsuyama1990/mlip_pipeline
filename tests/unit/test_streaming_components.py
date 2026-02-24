@@ -41,10 +41,6 @@ def test_trainer_train_streaming(streaming_config: PYACEMAKERConfig) -> None:
     trainer = PacemakerTrainer(streaming_config)
 
     # Create a generator that yields structures
-    # We want to verify it is consumed lazily.
-    # However, save_iter inside train consumes it.
-    # We mock save_iter to verify it receives a generator.
-
     def structure_gen() -> Iterator[StructureMetadata]:
         for _ in range(10):
             yield StructureMetadata(
@@ -55,10 +51,11 @@ def test_trainer_train_streaming(streaming_config: PYACEMAKERConfig) -> None:
 
     with patch.object(trainer.dataset_manager, "save_iter") as mock_save:
         # Mock save_iter to consume the generator passed to it
-        # This is crucial because trainer.train relies on consumption to count stats
         def consume_generator(data, *args, **kwargs):
+            # Consume generator without materializing list
             for _ in data:
                 pass
+
         mock_save.side_effect = consume_generator
 
         trainer.train(structure_gen())
@@ -85,18 +82,22 @@ def test_trainer_select_active_set_streaming(streaming_config: PYACEMAKERConfig)
         patch.object(trainer.dataset_manager, "load_iter") as mock_load,
     ):
         # Mock loading back the selected file to avoid errors
-        # Since we mock save_iter, the file won't exist.
-        # We also need to mock active_set_selector.select if not in mock mode,
-        # but trainer config mock=True handles that path.
+        mock_load.return_value = iter([Atoms("H")])  # Dummy return
 
-        # In mock mode, it reloads candidates and slices them.
-        # We need to ensure load_iter returns something.
-        mock_load.return_value = iter([Atoms("H")])  # Dummy return for extraction loop
+        def save_side_effect(iterator, path, **kwargs):
+            # Consume iterator lazy
+            for _ in iterator:
+                pass
+            # Create dummy file to satisfy exists check
+            if path:
+                Path(path).parent.mkdir(parents=True, exist_ok=True)
+                Path(path).touch()
+
+        mock_save.side_effect = save_side_effect
 
         _ = trainer.select_active_set(structure_gen(), n_select=5)
 
         # Check save_iter called with generator for candidates
-        # It's called twice in mock mode: once for candidates, once for selected.
         assert mock_save.call_count >= 1
         first_call_args = mock_save.call_args_list[0][0]
         assert isinstance(first_call_args[0], Iterator)
@@ -110,12 +111,10 @@ def test_orchestrator_training_phase_streaming(streaming_config: PYACEMAKERConfi
     orchestrator.trainer = MagicMock()
 
     # Mock dataset manager load_iter to return iterator
-    # We need to simulate that dataset exists
-    # Create the directory first
     orchestrator.training_path.parent.mkdir(parents=True, exist_ok=True)
     orchestrator.training_path.touch()
 
-    # Mock DatasetSplitter to return empty stream so we focus on step 2 (full train)
+    # Mock DatasetSplitter to return empty stream
     with patch("pyacemaker.orchestrator.DatasetSplitter") as MockSplitter:
         instance = MockSplitter.return_value
         instance.train_stream.return_value = iter([]) # Empty new items

@@ -39,10 +39,15 @@ def test_mace_trainer_train(
     mock_dataset_manager_cls: MagicMock,
     mock_mace_manager_cls: MagicMock,
     mace_config_mock: PYACEMAKERConfig,
+    tmp_path: Path,
 ):
     """Test MaceTrainer train method."""
     mock_mace_manager = mock_mace_manager_cls.return_value
-    mock_mace_manager.train.return_value = Path("fine_tuned.model")
+
+    # Mock return path as absolute path in tmp_path and create it
+    output_model = tmp_path / "fine_tuned.model"
+    output_model.touch()
+    mock_mace_manager.train.return_value = output_model
 
     mock_dataset_manager = mock_dataset_manager_cls.return_value
 
@@ -54,7 +59,7 @@ def test_mace_trainer_train(
     potential = trainer.train(dataset, epochs=10)
 
     assert isinstance(potential, Potential)
-    assert potential.path == Path("fine_tuned.model")
+    assert potential.path.name.startswith("mace_model_")
     assert potential.parameters["max_num_epochs"] == 10
 
     mock_dataset_manager.save_iter.assert_called_once()
@@ -62,11 +67,12 @@ def test_mace_trainer_train(
 
 
 @patch("pyacemaker.trainer.mace_trainer.MaceManager")
-def test_mace_trainer_select_active_set_not_implemented(
+def test_mace_trainer_select_active_set_dummy(
     mock_mace_manager_cls: MagicMock,
     mace_config_mock: PYACEMAKERConfig,
 ):
-    """Test select_active_set raises NotImplementedError."""
+    """Test select_active_set returns dummy ActiveSet."""
     trainer = MaceTrainer(mace_config_mock)
-    with pytest.raises(NotImplementedError):
-        trainer.select_active_set([], 10)
+    active_set = trainer.select_active_set([], 10)
+    assert len(active_set.structure_ids) == 0
+    assert active_set.selection_criteria == "external_mace_al"

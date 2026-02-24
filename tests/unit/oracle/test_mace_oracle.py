@@ -55,7 +55,7 @@ def test_predict_batch(mock_config, mock_mace_manager):
     mock_calc.get_stress.return_value = np.array([0.0] * 6)
     result_atoms.calc = mock_calc
 
-    manager_instance.compute.return_value = result_atoms
+    manager_instance.compute_batch.return_value = [result_atoms]
 
     # Run
     processed = oracle.predict_batch(structures)
