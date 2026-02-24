@@ -150,6 +150,9 @@ class MaceDistillationWorkflow:
         surrogate_pool_path = self._get_pool_path(4)
 
         try:
+            # Validate input path is safe before writing
+            surrogate_pool_path = validate_safe_path(surrogate_pool_path)
+
             # Generate a large number of structures
             # Use config-driven limit
             target_count = self.config.step4_surrogate_sampling.target_points
