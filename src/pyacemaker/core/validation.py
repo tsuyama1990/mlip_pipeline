@@ -85,25 +85,10 @@ def validate_safe_path(path: Path, allow_temp_dirs: bool = True) -> Path:
             candidate = (cwd / path).resolve()
 
             # Re-verify containment after resolution to catch sneaky symlinks
-            if candidate.is_relative_to(cwd):
-                # The audit feedback requires us to check the resolved absolute path against the whitelist.
-                # Even if it looks relative to CWD, it might be a resolved symlink or just "safe".
-                # We should pass the candidate (absolute) to _validate_absolute_path to be safe.
-                # However, the previous logic was:
-                # return path # Return original relative path for convenience if safe
-
-                # To fix the audit issue: "Path traversal protection must validate the final resolved path."
-                # We will validate the candidate against _validate_absolute_path
-                _validate_absolute_path(candidate, cwd, allow_temp_dirs=allow_temp_dirs)
-                return path
-
-            # If resolved path escapes CWD, fail (unless it matches whitelist via _validate_absolute_path)
-            # The structure of the code allows falling through to _validate_absolute_path below
-            # if we pass the absolute path. But `path` is relative here.
-
-            # Let's enforce validation on the resolved absolute path `candidate`.
+            # AND validate against whitelist using _validate_absolute_path (Security Fix)
+            # This ensures that even if it looks like it's in CWD, the resolved path is also safe
+            # and follows all whitelist rules.
             _validate_absolute_path(candidate, cwd, allow_temp_dirs=allow_temp_dirs)
-            # If it passes, return original path
             return path
 
         # For absolute paths, perform full validation against whitelist

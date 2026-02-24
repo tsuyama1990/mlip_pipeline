@@ -1036,6 +1036,18 @@ class DistillationConfig(BaseModel):
         default_factory=Step7PacemakerFinetuneConfig
     )
 
+    # Workflow Performance Settings
+    batch_size: int = Field(
+        default=100,
+        ge=1,
+        description="General batch size for processing structures"
+    )
+    write_buffer_size: int = Field(
+        default=1000,
+        ge=1,
+        description="Buffer size for writing labeled structures to disk"
+    )
+
     @field_validator("pool_file")
     @classmethod
     def validate_pool_file(cls, v: str) -> str:
