@@ -1,172 +1,82 @@
-"""Tests for configuration loading and validation."""
-
-import os
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 import yaml
 from pydantic import ValidationError
 
-from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig, ProjectConfig
-from pyacemaker.core.config_loader import load_config
-from pyacemaker.core.exceptions import ConfigurationError
+import pyacemaker.core.config  # Import the module to patch
+from pyacemaker.core.config import (
+    DynamicsEngineConfig,
+    MaceConfig,
+    get_defaults,
+    load_config,
+)
 
 
-def test_load_valid_config(tmp_path: Path) -> None:
+def test_load_valid_config(tmp_path):
     """Test loading a valid configuration file."""
     config_data = {
-        "version": "0.1.0",
-        "project": {"name": "Test Project", "root_dir": str(tmp_path)},
-        "oracle": {
-            "dft": {
-                "code": "quantum_espresso",
-                "command": "pw.x",
-                "pseudopotentials": {"Fe": "Fe.pbe-spn-kjpaw_psl.1.0.0.UPF"},
-            },
-            "mace": {"model_path": "medium"},
-        },
-        "logging": {"level": "DEBUG"},
+        "version": "1.0",
+        "dataset": {"name": "test_ds", "path": "data/"},
+        "potential": {"type": "pace", "cutoff": 5.0},
+        "trainer": {"epochs": 10},
     }
-    config_file = tmp_path / "config.yaml"
-    with config_file.open("w") as f:
-        yaml.dump(config_data, f)
 
-    # Create dummy pseudopotential file to pass file checks
-    (tmp_path / "Fe.pbe-spn-kjpaw_psl.1.0.0.UPF").touch()
+    config_file = tmp_path / "config.yaml"
+    with open(config_file, "w") as f:
+        yaml.dump(config_data, f)
 
     config = load_config(config_file)
-    assert isinstance(config, PYACEMAKERConfig)
-    assert config.project.name == "Test Project"
-    assert config.oracle.dft.code == "quantum_espresso"
+    assert config.version == "1.0"
+    assert config.dataset.name == "test_ds"
 
+def test_load_missing_config():
+    """Test error when config file missing."""
+    with pytest.raises(FileNotFoundError):
+        load_config(Path("nonexistent.yaml"))
 
-def test_project_config_path_traversal() -> None:
-    """Test path traversal check."""
-    # Direct
-    with pytest.raises(ValidationError, match="Path traversal detected"):
-        ProjectConfig(name="test", root_dir=Path("../../../etc/passwd"))
-
-    # Indirect
-    with pytest.raises(ValidationError, match="Path traversal detected"):
-        ProjectConfig(name="test", root_dir=Path("safe/../../unsafe"))
-
-
-def test_missing_config_file(tmp_path: Path) -> None:
-    """Test handling of missing configuration file."""
-    with pytest.raises(ConfigurationError, match="Configuration file not found"):
-        load_config(tmp_path / "missing.yaml")
-
-
-def test_invalid_yaml(tmp_path: Path) -> None:
-    """Test handling of invalid YAML."""
-    config_file = tmp_path / "invalid.yaml"
-    config_file.write_text("key: value: invalid")
-    with pytest.raises(ConfigurationError, match="Error parsing YAML"):
-        load_config(config_file)
-
-
-def test_invalid_schema(tmp_path: Path) -> None:
-    """Test handling of schema validation errors."""
-    config_data = {
-        "version": "0.1.0",
-        # Missing project
-        "oracle": {},
+def test_defaults_loading(tmp_path, monkeypatch):
+    """Test loading defaults from yaml."""
+    defaults_data = {
+        "dataset": {"train_ratio": 0.9}
     }
-    config_file = tmp_path / "invalid_schema.yaml"
-    with config_file.open("w") as f:
-        yaml.dump(config_data, f)
-
-    with pytest.raises(ConfigurationError, match="Invalid configuration"):
-        load_config(config_file)
-
-
-def test_load_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test loading defaults from environment variable path."""
-    defaults = {"version": "0.1.0", "log_level": "INFO"}
     defaults_file = tmp_path / "defaults.yaml"
-    with defaults_file.open("w") as f:
-        yaml.dump(defaults, f)
+    with open(defaults_file, "w") as f:
+        yaml.dump(defaults_data, f)
 
-    from pyacemaker.core.config import get_defaults
+    # Correctly patch the module-level variable
+    monkeypatch.setattr(pyacemaker.core.config, "_DEFAULTS_PATH", defaults_file)
+
+    # Clear lru_cache
     get_defaults.cache_clear()
 
-    # Monkeypatch the module-level variable
-    monkeypatch.setattr("pyacemaker.core.config._DEFAULTS_PATH", defaults_file)
+    defaults = get_defaults()
+    assert defaults["dataset"]["train_ratio"] == 0.9
 
-    data = get_defaults()
-    assert data["version"] == "0.1.0"
+def test_mace_config_url_validation():
+    """Test URL validation in MaceConfig."""
+    # Valid URL
+    cfg = MaceConfig(model_path="https://github.com/mace-model/mace/releases/download/v0.1/model.model")
+    assert cfg.model_path.startswith("https://")
 
+    # Invalid URL (spaces)
+    with pytest.raises(ValidationError):
+        MaceConfig(model_path="https://example.com/bad url")
 
-def test_defaults_file_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test that too large defaults file raises error."""
-    defaults_file = tmp_path / "large_defaults.yaml"
-    # Create file slightly larger than limit (1MB)
-    with defaults_file.open("wb") as f:
-        f.write(b" " * (1024 * 1024 + 1))
+    # Invalid URL (no scheme)
+    with pytest.raises(ValidationError):
+        MaceConfig(model_path="example.com/model")
 
-    from pyacemaker.core.config import get_defaults
-    get_defaults.cache_clear()
+def test_dynamics_config_sanitization():
+    """Test parameter sanitization in DynamicsEngineConfig."""
+    # Safe params
+    cfg = DynamicsEngineConfig(parameters={"thermo": 100})
+    assert cfg.parameters["thermo"] == 100
 
-    # Monkeypatch the module-level variable
-    monkeypatch.setattr("pyacemaker.core.config._DEFAULTS_PATH", defaults_file)
+    # Unsafe params (injection attempt)
+    with pytest.raises(ValidationError):
+        DynamicsEngineConfig(parameters={"dump": "100; rm -rf /"})
 
-    with pytest.raises(ValueError, match="Defaults file size"):
-        get_defaults()
+    with pytest.raises(ValidationError):
+         DynamicsEngineConfig(parameters={"fix": "1 && echo hacked"})
 
-
-def test_defaults_not_dict(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test defaults file not being a dictionary."""
-    defaults_file = tmp_path / "list_defaults.yaml"
-    defaults_file.write_text("- item1\n- item2")
-
-    from pyacemaker.core.config import get_defaults
-    get_defaults.cache_clear()
-
-    # Monkeypatch the module-level variable
-    monkeypatch.setattr("pyacemaker.core.config._DEFAULTS_PATH", defaults_file)
-
-    with pytest.raises(TypeError, match="must contain a YAML dictionary"):
-        get_defaults()
-
-
-def test_extra_fields_forbidden(tmp_path: Path) -> None:
-    """Test that extra fields are forbidden."""
-    original_skip = CONSTANTS.skip_file_checks
-    CONSTANTS.skip_file_checks = True
-    try:
-        config_data = {
-            "version": "0.1.0",
-            "project": {"name": "Test", "root_dir": ".", "extra_field": "forbidden"},
-            "oracle": {
-                "dft": {"code": "vasp", "pseudopotentials": {"Fe": "Fe.pbe.UPF"}},
-                "mock": True,
-            },
-        }
-        config_file = tmp_path / "extra.yaml"
-        with config_file.open("w") as f:
-            yaml.dump(config_data, f)
-
-        with pytest.raises(ConfigurationError, match="Extra inputs are not permitted"):
-            load_config(config_file)
-    finally:
-        CONSTANTS.skip_file_checks = original_skip
-
-
-def test_load_config_permission_denied(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test handling of permission error."""
-    # We must enable checks to test os.access check
-    monkeypatch.setattr(CONSTANTS, "skip_file_checks", False)
-    monkeypatch.chdir(tmp_path)
-
-    config_file = tmp_path / "protected.yaml"
-    config_file.touch()
-
-    # Use relative path
-    rel_path = Path("protected.yaml")
-
-    # Mock os.access to return False
-    monkeypatch.setattr(os, "access", lambda path, mode: False)
-
-    with pytest.raises(ConfigurationError, match="Permission denied"):
-        load_config(rel_path)

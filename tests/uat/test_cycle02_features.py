@@ -1,7 +1,6 @@
 """UAT tests for Cycle 02 Features."""
 
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 

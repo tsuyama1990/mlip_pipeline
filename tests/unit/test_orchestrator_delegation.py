@@ -15,8 +15,8 @@ from pyacemaker.core.interfaces import (
     Validator,
 )
 from pyacemaker.domain_models.models import Potential, PotentialType
-from pyacemaker.orchestrator import Orchestrator
 from pyacemaker.modules.mace_workflow import MaceDistillationWorkflow
+from pyacemaker.orchestrator import Orchestrator
 
 
 @pytest.fixture
@@ -143,7 +143,7 @@ def test_orchestrator_dependency_injection_for_workflow(mace_config: PYACEMAKERC
 
     # Patch _create_mace_workflow method on the instance
     # Use setattr to bypass mypy method assignment check
-    setattr(orch, '_create_mace_workflow', MagicMock(return_value=mock_workflow))
+    orch._create_mace_workflow = MagicMock(return_value=mock_workflow)
 
     orch.run()
 
