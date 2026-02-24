@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING, Any
 from ase.io import write
 from loguru import logger
 
-from pyacemaker.core.base import BaseComponent
 from pyacemaker.core.config import DistillationConfig
-from pyacemaker.core.dataset import DatasetManager
+from pyacemaker.core.interfaces import Oracle
+from pyacemaker.core.logging import get_logger
 from pyacemaker.core.utils import (
     stream_metadata_to_atoms,
     validate_structure_integrity_atoms,
@@ -19,13 +19,14 @@ from pyacemaker.modules.active_learner import ActiveLearner
 from pyacemaker.modules.oracle import MaceSurrogateOracle
 from pyacemaker.modules.structure_generator import StructureGenerator
 from pyacemaker.modules.trainer import PacemakerTrainer
-from pyacemaker.oracle.manager import OracleManager
+from pyacemaker.oracle.dataset import DatasetManager
+from pyacemaker.trainer.mace_trainer import MaceTrainer
 
 if TYPE_CHECKING:
     from ase import Atoms
 
 
-class MaceDistillationWorkflow(BaseComponent):
+class MaceDistillationWorkflow:
     """
     Workflow manager for the MACE Distillation process (Cycle 05/06).
     Orchestrates the steps:
@@ -44,14 +45,14 @@ class MaceDistillationWorkflow(BaseComponent):
         dataset_manager: DatasetManager,
         active_learner: ActiveLearner,
         structure_generator: StructureGenerator,
-        oracle: OracleManager,
+        oracle: Oracle,
         mace_oracle: MaceSurrogateOracle,
         pacemaker_trainer: PacemakerTrainer,
-        mace_trainer: Any,  # MaceTrainer type
+        mace_trainer: MaceTrainer,  # Strict typing
         work_dir: Path,
-        batch_size: int = 100,  # Default batch size for labeling if not in config
     ) -> None:
-        super().__init__(config)
+        self.config = config
+        self.logger = get_logger(self.__class__.__name__)
         self.dataset_manager = dataset_manager
         self.active_learner = active_learner
         self.structure_generator = structure_generator
@@ -60,7 +61,10 @@ class MaceDistillationWorkflow(BaseComponent):
         self.pacemaker_trainer = pacemaker_trainer
         self.mace_trainer = mace_trainer
         self.work_dir = work_dir
-        self.batch_size = batch_size
+
+        # Use config-driven settings
+        self.batch_size = config.batch_size
+        self.write_buffer_size = config.write_buffer_size
 
         # Ensure work directory exists
         self.work_dir.mkdir(parents=True, exist_ok=True)
@@ -79,7 +83,6 @@ class MaceDistillationWorkflow(BaseComponent):
         pool_path = self._get_pool_path(1)
 
         # Generate structures as a stream
-        # Correct method name based on interface
         candidates_iter = self.structure_generator.generate_direct_samples(
             n_samples=self.config.step1_direct_sampling.target_points,
             objective=self.config.step1_direct_sampling.objective
@@ -88,7 +91,6 @@ class MaceDistillationWorkflow(BaseComponent):
         # Validation wrapper for the stream
         def validated_stream(iterator: Iterator[Any]) -> Iterator[Any]:
             for s in iterator:
-                # We can add lightweight validation here if needed on metadata
                 yield s
 
         # Save stream to file (memory safe)
@@ -153,22 +155,70 @@ class MaceDistillationWorkflow(BaseComponent):
         # Use config-driven limit
         target_count = self.config.step4_surrogate_sampling.target_points
 
-        # Reuse direct sampling or a different method if configured?
-        # Assuming generate_direct_samples is generic enough or we use another method.
-        # The previous code used generate_candidates which implies simple generation.
-        # We'll use generate_direct_samples again for now, assuming it pulls from generator config.
+        # Reuse direct sampling
         candidates_iter = self.structure_generator.generate_direct_samples(
-            n_samples=target_count + 1000, # Request more to ensure we hit limit
+            n_samples=target_count,
             objective=self.config.step1_direct_sampling.objective # Reuse objective?
         )
+
+        # Ensure memory safety by strictly slicing the iterator
         limited_iter = islice(candidates_iter, target_count)
 
+        # save_metadata_stream is designed to consume iterator one-by-one
+        # Verify dataset_manager.save_metadata_stream logic (it iterates)
         count = self.dataset_manager.save_metadata_stream(limited_iter, surrogate_pool_path)
 
         logger.info(f"Generated {count} surrogate candidates in {surrogate_pool_path}")
         state.artifacts["surrogate_pool_path"] = str(surrogate_pool_path)
         state.current_step = 5
         return state
+
+    def _labeled_stream_gen(self, iterator: Iterator["Atoms"]) -> Iterator["Atoms"]:
+        """Generator that batches structure labeling.
+
+        Consumes input iterator, batches atoms for processing, and yields labeled atoms one by one.
+        """
+        batch: list[Atoms] = []
+        for atoms in iterator:
+            # Validation
+            validate_structure_integrity_atoms(atoms)
+            batch.append(atoms)
+
+            if len(batch) >= self.batch_size:
+                yield from self._process_batch(batch)
+                batch = [] # Clear memory
+
+        # Process remaining
+        if batch:
+            yield from self._process_batch(batch)
+
+    def _write_labeled_stream(self, labeled_iterator: Iterator["Atoms"], output_path: Path) -> int:
+        """Writes labeled structures to file using a buffer.
+
+        Consumes the labeled stream and writes in chunks to optimize I/O.
+        """
+        count = 0
+        if output_path.exists():
+            output_path.unlink()
+
+        try:
+            with output_path.open("w") as f:
+                 buffer: list[Atoms] = []
+
+                 for atoms in labeled_iterator:
+                     buffer.append(atoms)
+                     count += 1
+                     if len(buffer) >= self.write_buffer_size:
+                         write(f, buffer, format="extxyz")
+                         buffer = [] # Clear buffer after write (Fixes memory leak)
+
+                 if buffer:
+                     write(f, buffer, format="extxyz")
+        except Exception as e:
+            logger.error(f"Failed to write labeled structures to {output_path}: {e}")
+            raise
+
+        return count
 
     def step5_surrogate_labeling(self, state: PipelineState) -> PipelineState:
         """
@@ -188,9 +238,7 @@ class MaceDistillationWorkflow(BaseComponent):
         mace_model_path_str = state.artifacts.get("mace_model_path")
         if not mace_model_path_str:
              # Fallback or error? Usually error if AL loop succeeded.
-             # If step 2 was skipped or failed but we continue?
-             logger.warning("mace_model_path missing, using default/mock if allowed")
-             # For strictness:
+             logger.warning("mace_model_path missing")
              raise ValueError("Artifact 'mace_model_path' missing in state")
 
         mace_model_path = Path(str(mace_model_path_str))
@@ -207,65 +255,33 @@ class MaceDistillationWorkflow(BaseComponent):
         # 2. Convert to Atoms for calculator
         atoms_iter = stream_metadata_to_atoms(input_iter)
 
-        # 3. Label stream (batching handled inside calculator/oracle usually,
-        # but here we might need to be careful. ASE calculator is per-atoms usually)
+        # 3. Label stream (Generator-based batching)
+        labeled_gen = self._labeled_stream_gen(atoms_iter)
 
-        def labeled_stream_gen(iterator: Iterator["Atoms"]) -> Iterator["Atoms"]:
-            batch_size = self.batch_size
-            batch: list[Atoms] = []
-            for atoms in iterator:
-                # Validation
-                validate_structure_integrity_atoms(atoms)
-
-                batch.append(atoms)
-                if len(batch) >= batch_size:
-                    # Process batch
-                    for a in batch:
-                        # Calc energy/forces
-                        a.calc = self.mace_oracle.calculator
-                        try:
-                            a.get_potential_energy()
-                            a.get_forces()
-                            yield a
-                        except Exception as e:
-                            logger.warning(f"Failed to label structure: {e}")
-                            # Skip bad structures
-                            continue
-                    batch = []
-
-            # Leftovers
-            for a in batch:
-                a.calc = self.mace_oracle.calculator
-                try:
-                    a.get_potential_energy()
-                    a.get_forces()
-                    yield a
-                except Exception as e:
-                    logger.warning(f"Failed to label structure: {e}")
-
-        # 4. Save stream
-        count = 0
-        # Initialize file
-        if labeled_pool_path.exists():
-            labeled_pool_path.unlink()
-
-        # Write incrementally
-        # We can't easily use ASE write(append=True) efficiently if we open/close every time.
-        # Better to keep file open.
-        # Note: ASE's write supports a file object.
-        try:
-            with open(labeled_pool_path, "w") as f:
-                 for atoms in labeled_stream_gen(atoms_iter):
-                     write(f, atoms, format="extxyz")
-                     count += 1
-        except Exception as e:
-            logger.error(f"Failed to write labeled structures to {labeled_pool_path}: {e}")
-            raise
+        # 4. Save stream using batch write to optimize I/O
+        count = self._write_labeled_stream(labeled_gen, labeled_pool_path)
 
         logger.info(f"Labeled {count} surrogate structures in {labeled_pool_path}")
         state.artifacts["labeled_surrogate_path"] = str(labeled_pool_path)
         state.current_step = 6
         return state
+
+    def _process_batch(self, batch: list["Atoms"]) -> Iterator["Atoms"]:
+        """Process a batch of atoms with the MACE calculator."""
+        # MACE Calculator optimization: if using MACECalculator directly, it might support batching
+        # But here we are using self.mace_oracle.calculator, which is an ASE calculator.
+        # We iterate for now, but batching logic is encapsulated here for future optimization.
+
+        for a in batch:
+            a.calc = self.mace_oracle.calculator
+            try:
+                # This triggers calculation
+                a.get_potential_energy()
+                a.get_forces()
+                yield a
+            except Exception as e:
+                logger.warning(f"Failed to label structure: {e}")
+                # Skip bad structures
 
     def step6_pacemaker_base_training(self, state: PipelineState) -> PipelineState:
         """
@@ -293,7 +309,34 @@ class MaceDistillationWorkflow(BaseComponent):
         Step 7: Delta Learning (Optional).
         """
         logger.info("Step 7: Delta Learning check")
-        # Logic for delta learning if config enabled
-        # ...
+
+        # Check configuration
+        if not self.config.step7_pacemaker_finetune.enable:
+            logger.info("Delta Learning disabled in config. Skipping.")
+            state.current_step = 8
+            return state
+
+        # Retrieve inputs
+        pacemaker_pot_str = state.artifacts.get("pacemaker_potential_path")
+        if not pacemaker_pot_str:
+             logger.warning("Base Pacemaker potential missing. Cannot perform Delta Learning.")
+             msg = "Artifact 'pacemaker_potential_path' missing for Delta Learning"
+             raise ValueError(msg)
+
+        # Logic for delta learning would involve:
+        # 1. Loading the base potential
+        # 2. Loading the original DFT dataset (from Step 2 or pool)
+        # 3. Retraining with high weight on DFT data
+        # For Cycle 06, we implement the error handling and stub the logic.
+
+        logger.info("Delta Learning logic placeholder executed.")
+
+        # In a real implementation:
+        # final_pot = self.pacemaker_trainer.train_delta(...)
+        # state.artifacts["final_potential"] = str(final_pot)
+
+        # Propagate base potential as final if delta logic is stubbed
+        state.artifacts["final_potential"] = pacemaker_pot_str
+
         state.current_step = 8 # Done
         return state

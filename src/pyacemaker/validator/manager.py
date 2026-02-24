@@ -9,7 +9,7 @@ from pyacemaker.core.config import ValidatorConfig
 from pyacemaker.core.validation import validate_safe_path
 from pyacemaker.domain_models.models import Potential, PotentialType
 from pyacemaker.domain_models.validator import ValidationResult
-from pyacemaker.validator.physics import check_elastic, check_eos, check_phonons
+from pyacemaker.validator.physics import PhysicsValidator
 from pyacemaker.validator.report import ReportGenerator
 
 
@@ -20,6 +20,7 @@ class ValidatorManager:
         """Initialize validator manager."""
         self.config = config
         self.logger = logger.bind(name="ValidatorManager")
+        self.physics_validator = PhysicsValidator()
 
     def _attach_calculator(self, atoms: Atoms, potential: Potential) -> Atoms:
         """Attach potential calculator to atoms."""
@@ -99,16 +100,20 @@ class ValidatorManager:
             self.logger.exception("Skipping validation due to missing calculator.")
             return ValidationResult(
                 passed=False,
-                metrics={},
+                metrics={"error": 1.0}, # Minimal metrics for error state
+                eos_stable=False,
                 phonon_stable=False,
                 elastic_stable=False,
                 artifacts={},
             )
 
+        # Use PhysicsValidator for all checks
+        # This keeps Manager clean and logic in Validator
+
         # 1. Phonons
         self.logger.info("Running phonon stability check...")
         try:
-            phonon_stable = check_phonons(
+            phonon_stable = self.physics_validator.check_phonons(
                 structure,
                 supercell=self.config.phonon_supercell,
                 tolerance=self.config.phonon_tolerance,
@@ -121,7 +126,7 @@ class ValidatorManager:
         self.logger.info("Running EOS check...")
         try:
             eos_output_path = output_dir / "eos.png"
-            bulk_modulus, eos_plot = check_eos(
+            bulk_modulus, eos_plot = self.physics_validator.check_eos(
                 structure,
                 strain=self.config.eos_strain,
                 points=self.config.eos_points,
@@ -129,15 +134,17 @@ class ValidatorManager:
             )
             # Resolve artifact path
             eos_plot_path = Path(eos_plot)
+            eos_stable = bulk_modulus > 0
         except Exception:
             self.logger.exception("EOS check failed with error")
             bulk_modulus = 0.0
             eos_plot_path = Path("eos_failed.png")
+            eos_stable = False
 
         # 3. Elastic
         self.logger.info("Running elastic stability check...")
         try:
-            elastic_stable, elastic_constants = check_elastic(
+            elastic_stable, elastic_constants = self.physics_validator.check_elastic(
                 structure, strain=self.config.elastic_strain
             )
         except Exception:
@@ -152,7 +159,7 @@ class ValidatorManager:
         metrics.update(elastic_constants)
 
         # Determine overall pass
-        passed = phonon_stable and elastic_stable
+        passed = phonon_stable and elastic_stable and eos_stable
 
         artifacts = {
             "eos": str(eos_plot_path),
@@ -161,6 +168,7 @@ class ValidatorManager:
         result = ValidationResult(
             passed=passed,
             metrics=metrics,
+            eos_stable=eos_stable,
             phonon_stable=phonon_stable,
             elastic_stable=elastic_stable,
             artifacts=artifacts,

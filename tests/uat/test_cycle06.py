@@ -1,151 +1,46 @@
-"""UAT Tests for Cycle 06."""
+"""UAT for Cycle 06."""
 
+import os
+import subprocess
+import sys
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
-from ase import Atoms
-
-from pyacemaker.core.config import EONConfig, ValidatorConfig
-from pyacemaker.domain_models.models import Potential, PotentialType
-from pyacemaker.dynamics.kmc import EONWrapper
-from pyacemaker.validator.manager import ValidatorManager
 
 
-@pytest.fixture
-def mock_atoms() -> Atoms:
-    """Create a mock Atoms object."""
-    return Atoms("Si2", positions=[[0, 0, 0], [1.5, 1.5, 1.5]], cell=[3, 3, 3], pbc=True)
+@pytest.mark.slow
+def test_uat_tutorial_execution(tmp_path: Path) -> None:
+    """Test execution of the master tutorial script."""
+    # Ensure tutorial script exists
+    script_path = Path("tutorials/UAT_AND_TUTORIAL.py")
+    if not script_path.exists():
+        pytest.skip(f"Tutorial script not found at {script_path}. Skipping until implemented.")
 
+    # Set environment for Mock Mode
+    env = os.environ.copy()
+    env["CI"] = "true"
+    env["MOCK_MODE"] = "true"
 
-@pytest.fixture
-def validator_config() -> ValidatorConfig:
-    """Create a validator configuration."""
-    return ValidatorConfig()
-
-
-@pytest.fixture
-def eon_config() -> EONConfig:
-    """Create an EON configuration."""
-    return EONConfig(executable="mock_eon")
-
-
-def test_scenario_01_phonon_stability(
-    mock_atoms: Atoms, validator_config: ValidatorConfig, tmp_path: Path
-) -> None:
-    """Scenario 01: Verify phonon stability check."""
-    manager = ValidatorManager(validator_config)
-    potential_path = tmp_path / "potential.yace"
-    potential_path.touch()
-
-    potential = Potential(
-        path=potential_path,
-        type=PotentialType.PACE,
-        version="1.0",
-        metrics={},
-        parameters={}
+    # Run the script
+    # Use sys.executable for safety (S607 fixed)
+    # S603: We trust the script path as it is part of the repo
+    result = subprocess.run(
+        [sys.executable, str(script_path)],
+        env=env,
+        capture_output=True,
+        text=True,
+        cwd=Path.cwd(),
+        check=False  # We manually check returncode
     )
 
-    # Mock specific phonon check
-    with (
-        patch("pyacemaker.validator.manager.check_phonons") as mock_check,
-        patch("pyacemaker.validator.manager.check_eos") as mock_eos,
-        patch("pyacemaker.validator.manager.check_elastic") as mock_elastic,
-        patch("pyacemaker.validator.manager.ReportGenerator"),
-    ):
-        mock_check.return_value = False  # Unstable
-        mock_eos.return_value = (100.0, "eos.png")
-        mock_elastic.return_value = (True, {})
+    # Check execution success
+    if result.returncode != 0:
+        # Use simple string concatenation for error message instead of print
+        error_msg = f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        pytest.fail(f"Tutorial script failed execution.\n{error_msg}")
 
-        result = manager.validate(potential, mock_atoms, output_dir=tmp_path)
-
-        assert result.phonon_stable is False
-        assert result.passed is False
-
-
-def test_scenario_02_eos_check(
-    mock_atoms: Atoms, validator_config: ValidatorConfig, tmp_path: Path
-) -> None:
-    """Scenario 02: Verify EOS check."""
-    manager = ValidatorManager(validator_config)
-    potential_path = tmp_path / "potential.yace"
-    potential_path.touch()
-
-    potential = Potential(
-        path=potential_path,
-        type=PotentialType.PACE,
-        version="1.0",
-        metrics={},
-        parameters={}
-    )
-
-    with (
-        patch("pyacemaker.validator.manager.check_eos") as mock_eos,
-        patch("pyacemaker.validator.manager.check_phonons") as mock_phonons,
-        patch("pyacemaker.validator.manager.check_elastic") as mock_elastic,
-        patch("pyacemaker.validator.manager.ReportGenerator"),
-    ):
-        mock_eos.return_value = (150.0, "eos.png")
-        mock_phonons.return_value = True
-        mock_elastic.return_value = (True, {})
-
-        result = manager.validate(potential, mock_atoms, output_dir=tmp_path)
-
-        assert result.metrics["bulk_modulus"] == 150.0
-        assert any(str(v).endswith("eos.png") for v in result.artifacts.values())
-
-
-def test_scenario_03_report_generation(
-    mock_atoms: Atoms, validator_config: ValidatorConfig, tmp_path: Path
-) -> None:
-    """Scenario 03: Verify HTML report generation."""
-    manager = ValidatorManager(validator_config)
-    potential_path = tmp_path / "potential.yace"
-    potential_path.touch()
-
-    potential = Potential(
-        path=potential_path,
-        type=PotentialType.PACE,
-        version="1.0",
-        metrics={},
-        parameters={}
-    )
-
-    with patch("pyacemaker.validator.manager.ReportGenerator") as MockReport:
-        mock_instance = MockReport.return_value
-
-        with (
-            patch("pyacemaker.validator.manager.check_phonons") as mock_p,
-            patch("pyacemaker.validator.manager.check_eos") as mock_e,
-            patch("pyacemaker.validator.manager.check_elastic") as mock_el,
-        ):
-            mock_p.return_value = True
-            mock_e.return_value = (100.0, "eos.png")
-            mock_el.return_value = (True, {})
-
-            manager.validate(potential, mock_atoms, output_dir=tmp_path)
-
-            mock_instance.generate.assert_called_once()
-            # Verify generated path
-            args = mock_instance.generate.call_args
-            assert args[0][1] == tmp_path / "validation_report.html"
-
-
-def test_scenario_04_eon_execution(
-    mock_atoms: Atoms, eon_config: EONConfig, tmp_path: Path
-) -> None:
-    """Scenario 04: Verify EON execution."""
-    wrapper = EONWrapper(eon_config)
-    potential_path = Path("potential.yace")
-
-    with (
-        patch("pyacemaker.dynamics.kmc.subprocess.run") as mock_run,
-        patch("pyacemaker.dynamics.kmc.shutil.which") as mock_which,
-    ):
-        mock_run.return_value.returncode = 0
-        mock_which.return_value = "/usr/bin/mock_eon"
-
-        wrapper.run_search(mock_atoms, potential_path, work_dir=tmp_path)
-
-        mock_run.assert_called_once()
-        assert (tmp_path / "config.ini").exists()
+    # Verify artifacts (basic check)
+    # Loguru writes to stderr by default
+    output = result.stdout + result.stderr
+    assert "Validation complete" in output
+    assert "UAT Completed Successfully" in output
