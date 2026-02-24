@@ -172,8 +172,8 @@ class MaceDistillationWorkflow:
                 potential = self._execute_active_learning_iteration(
                     dist_config, pool_path, calculated_ids, current_potential
                 )
-            except Exception as e:
-                self.logger.error(f"Active learning iteration failed: {e}. Trying to continue.")
+            except Exception:
+                self.logger.exception("Active learning iteration failed. Trying to continue.")
                 continue
 
             if potential is None:

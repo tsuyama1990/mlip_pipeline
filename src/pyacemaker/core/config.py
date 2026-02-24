@@ -336,15 +336,27 @@ class Constants(BaseSettings):
     )
 
     # Generator Defaults
-    direct_oversample: int = Field(default=10, description="Oversampling factor for Direct Sampling")
-    direct_batch_size: int = Field(default=100, description="Batch size for Direct Sampling")
-    direct_box_size: float = Field(default=10.0, description="Box size for Direct Sampling")
+    direct_oversample: int = Field(
+        default_factory=lambda: get_defaults()["structure_direct_oversample"],
+        description="Oversampling factor for Direct Sampling"
+    )
+    direct_batch_size: int = Field(
+        default_factory=lambda: get_defaults()["structure_direct_batch_size"],
+        description="Batch size for Direct Sampling"
+    )
+    direct_box_size: float = Field(
+        default_factory=lambda: get_defaults()["structure_direct_box_size"],
+        description="Box size for Direct Sampling"
+    )
 
     # MACE Defaults
     mace_default_model_name: str = Field(
         default="mace_model_compiled.model", description="Default MACE model filename"
     )
-    mace_default_max_epochs: int = Field(default=50, description="Default max epochs for MACE training")
+    mace_default_max_epochs: int = Field(
+        default_factory=lambda: get_defaults()["mace_default_max_epochs"],
+        description="Default max epochs for MACE training"
+    )
 
     mace_allowed_train_params: frozenset[str] = Field(
         default_factory=lambda: frozenset({
@@ -365,7 +377,10 @@ class Constants(BaseSettings):
     )
 
     # Oracle Defaults
-    oracle_chunk_size: int = Field(default=100, description="Chunk size for Oracle batch processing")
+    oracle_chunk_size: int = Field(
+        default_factory=lambda: get_defaults()["oracle_chunk_size"],
+        description="Chunk size for Oracle batch processing"
+    )
 
     @field_validator("max_config_size")
     @classmethod
@@ -458,7 +473,10 @@ class MaceConfig(BaseModel):
     batch_size: int = Field(
         default=CONSTANTS.default_mace_batch_size, description="Batch size for prediction"
     )
-    mock: bool = Field(default=False, description="Mock MACE for testing")
+    mock: bool = Field(
+        default_factory=lambda: get_defaults()["mace_mock"],
+        description="Mock MACE for testing"
+    )
 
     @field_validator("model_path")
     @classmethod
@@ -557,10 +575,12 @@ class DFTConfig(BaseModel):
         description="Maximum number of parallel workers for DFT calculations",
     )
     embedding_enabled: bool = Field(
-        default=True, description="Enable periodic embedding for non-periodic structures"
+        default_factory=lambda: get_defaults()["dft"]["embedding_enabled"],
+        description="Enable periodic embedding for non-periodic structures"
     )
     embedding_buffer: float = Field(
-        default=2.0, description="Buffer size for periodic embedding (Angstrom)"
+        default_factory=lambda: get_defaults()["dft"]["embedding_buffer"],
+        description="Buffer size for periodic embedding (Angstrom)"
     )
     parameters: dict[str, Any] = Field(
         default_factory=dict, description="Additional parameters (e.g. for mocking)"
@@ -603,7 +623,10 @@ class OracleConfig(BaseModel):
 
     dft: DFTConfig = Field(..., description="DFT configuration")
     mace: MaceConfig | None = Field(default=None, description="MACE configuration")
-    mock: bool = Field(default=False, description="Use mock oracle for testing")
+    mock: bool = Field(
+        default_factory=lambda: get_defaults()["oracle_mock"],
+        description="Use mock oracle for testing"
+    )
 
 
 class StructureGeneratorConfig(BaseModuleConfig):
@@ -640,7 +663,10 @@ class TrainerConfig(BaseModuleConfig):
     potential_type: str = Field(
         default=CONSTANTS.default_trainer_potential, description="Type of potential to train"
     )
-    mock: bool = Field(default=False, description="Use mock trainer for testing")
+    mock: bool = Field(
+        default_factory=lambda: get_defaults()["trainer_mock"],
+        description="Use mock trainer for testing"
+    )
     cutoff: float = Field(
         default=CONSTANTS.default_trainer_cutoff,
         description="Cutoff radius for the potential (Angstrom)",
@@ -937,7 +963,10 @@ class DistillationConfig(BaseModel):
     """Configuration for MACE Distillation Workflow."""
 
     model_config = ConfigDict(extra="forbid")
-    enable_mace_distillation: bool = Field(default=False, description="Enable MACE distillation")
+    enable_mace_distillation: bool = Field(
+        default_factory=lambda: get_defaults()["distillation_enable"],
+        description="Enable MACE distillation"
+    )
 
     # File paths for intermediate artifacts
     pool_file: str = Field(
@@ -975,7 +1004,10 @@ class ValidatorConfig(BaseModel):
         description="Metrics to validate",
     )
     thresholds: dict[str, float] = Field(default_factory=dict, description="Validation thresholds")
-    test_set_ratio: float = Field(default=0.1, description="Ratio of dataset to use for testing")
+    test_set_ratio: float = Field(
+        default_factory=lambda: get_defaults()["validator_test_ratio"],
+        description="Ratio of dataset to use for testing"
+    )
     phonon_supercell: list[int] = Field(
         default_factory=lambda: CONSTANTS.physics_phonon_supercell,
         description="Supercell for phonon calculation",
