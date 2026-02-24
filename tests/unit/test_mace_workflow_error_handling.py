@@ -1,6 +1,5 @@
 """Tests for MACE Workflow Error Handling."""
 
-from collections.abc import Iterable, Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -40,16 +39,12 @@ def test_mace_workflow_oracle_failure_recovery(mock_config: PYACEMAKERConfig, tm
     # Mock Step 1 to return a pool
     dataset_manager = DatasetManager()
     pool_path = tmp_path / "pool.pckl.gzip"
-    # Create dummy pool
+    # Create dummy pool using generator to simulate streaming and avoid memory loading
     from ase import Atoms
-    atoms_list = [Atoms("H") for _ in range(10)]
-    dataset_manager.save_iter(atoms_list, pool_path)
+    atoms_iter = (Atoms("H") for _ in range(10))
+    dataset_manager.save_iter(atoms_iter, pool_path)
 
-    mock_sg.generate_direct_samples.return_value = [] # Not used since we mock step 1 result?
-    # Wait, workflow calls step 1.
-    # Let's mock the internal step method to avoid complexity?
-    # No, test integration of error handling in loop.
-
+    # Mock generator return value also as iterator
     mock_sg.generate_direct_samples.return_value = (
         StructureMetadata(features={"atoms": Atoms("H")}, id=i) for i in range(10)
     )
@@ -58,20 +53,8 @@ def test_mace_workflow_oracle_failure_recovery(mock_config: PYACEMAKERConfig, tm
     mock_mace_oracle = MagicMock(spec=MaceSurrogateOracle)
 
     # Mock uncertainty to fail on first call, succeed on second
-    def side_effect(structures):
-        # We need to detect which call it is.
-        # side_effect can be an iterable or function.
-        # Function gets args.
-        raise RuntimeError("Transient Failure")
-
-    # If we raise RuntimeError, the loop catches Exception and continues.
-    # But does it retry the same iteration? No, the loop index increments.
-    # So iteration 1 fails, logs error, continues to iteration 2.
-
     def uncertainty_side_effect(structures):
         # We need to yield metadata, but fail on first call
-        # But compute_uncertainty returns iterator.
-        # If we raise in the function, it raises immediately when called.
         if mock_mace_oracle.compute_uncertainty.call_count == 1:
             raise RuntimeError("Transient Failure")
         # Return dummy structures

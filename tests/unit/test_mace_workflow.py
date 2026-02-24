@@ -1,6 +1,6 @@
 """Tests for MACE Distillation Workflow."""
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
@@ -9,21 +9,18 @@ from uuid import uuid4
 import pytest
 from ase import Atoms
 
-from pyacemaker.core.base import Metrics
 from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.core.interfaces import (
     DynamicsEngine,
     Oracle,
     StructureGenerator,
     Trainer,
-    UncertaintyModel,
 )
 from pyacemaker.core.utils import validate_structure_integrity
 from pyacemaker.domain_models.models import (
     Potential,
     PotentialType,
     StructureMetadata,
-    StructureStatus,
     UncertaintyState,
 )
 from pyacemaker.modules.mace_workflow import MaceDistillationWorkflow

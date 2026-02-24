@@ -90,23 +90,8 @@ class MaceDistillationWorkflow:
                     parameters={},
                 )
 
-            # Step 4: Surrogate Data Generation
-            surrogate_structures_path = self._step4_surrogate_data_generation(
-                dist_config, fine_tuned_potential
-            )
-
-            # Step 5: Surrogate Labeling
-            # Update mace_oracle model first!
-            if hasattr(self.mace_oracle, "update_model"):
-                self.mace_oracle.update_model(fine_tuned_potential.path)
-
-            surrogate_dataset_path = self._step5_surrogate_labeling(surrogate_structures_path)
-
-            # Step 6: Pacemaker Base Training
-            base_ace_potential = self._step6_pacemaker_base_training(surrogate_dataset_path)
-
-            # Step 7: Delta Learning
-            final_potential = self._step7_delta_learning(dist_config, base_ace_potential)
+            # Execute the surrogate pipeline (Steps 4-7)
+            final_potential = self._run_surrogate_pipeline(dist_config, fine_tuned_potential)
 
             elapsed = time.time() - start_time
             return ModuleResult(
@@ -122,6 +107,26 @@ class MaceDistillationWorkflow:
                 error=str(e),
             )
 
+    def _run_surrogate_pipeline(self, dist_config: Any, fine_tuned_potential: Potential) -> Potential:
+        """Run the Surrogate Data Generation, Labeling, and Training pipeline (Steps 4-7)."""
+        # Step 4: Surrogate Data Generation
+        surrogate_structures_path = self._step4_surrogate_data_generation(
+            dist_config, fine_tuned_potential
+        )
+
+        # Step 5: Surrogate Labeling
+        # Update mace_oracle model first!
+        if hasattr(self.mace_oracle, "update_model"):
+            self.mace_oracle.update_model(fine_tuned_potential.path)
+
+        surrogate_dataset_path = self._step5_surrogate_labeling(surrogate_structures_path)
+
+        # Step 6: Pacemaker Base Training
+        base_ace_potential = self._step6_pacemaker_base_training(surrogate_dataset_path)
+
+        # Step 7: Delta Learning
+        return self._step7_delta_learning(dist_config, base_ace_potential)
+
     def _step1_direct_sampling(self, dist_config: Any) -> Path:
         """Step 1: DIRECT Sampling (Entropy Maximization)."""
         self.logger.info("Step 1: DIRECT Sampling")
@@ -134,6 +139,8 @@ class MaceDistillationWorkflow:
         pool_file = dist_config.pool_file
         pool_path = self.config.project.root_dir / "data" / pool_file
 
+        # Stream generator to file without materializing list
+        # Uses buffered I/O internally in DatasetManager
         save_metadata_stream(
             self.dataset_manager,
             samples_iter,

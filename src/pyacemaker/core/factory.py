@@ -21,6 +21,7 @@ from pyacemaker.modules.structure_generator import (
     AdaptiveStructureGenerator,
     RandomStructureGenerator,
 )
+from pyacemaker.modules.validator import MockValidator
 from pyacemaker.modules.validator import Validator as ProductionValidator
 from pyacemaker.oracle.mace_oracle import MaceSurrogateOracle
 from pyacemaker.trainer.mace_trainer import MaceTrainer
@@ -77,9 +78,5 @@ class ModuleFactory:
     def create_validator(config: PYACEMAKERConfig) -> Validator:
         """Create a validator instance."""
         if config.oracle.mock:
-            # Lazy import to avoid potential circular dependencies if any
-            # and because MockValidator is specifically for testing contexts
-            from pyacemaker.modules.validator import MockValidator
-
             return MockValidator(config)
         return ProductionValidator(config)

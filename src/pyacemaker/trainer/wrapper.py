@@ -1,7 +1,6 @@
 """Pacemaker Wrapper."""
 
 import re
-import shlex
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -86,6 +85,11 @@ class PacemakerWrapper:
             Path to the trained potential file.
 
         """
+        validate_safe_path(dataset_path)
+        validate_safe_path(output_dir)
+        if initial_potential:
+            validate_safe_path(initial_potential)
+
         self._validate_paths(dataset_path, output_dir)
 
         cmd = ["pace_train"]
@@ -100,7 +104,6 @@ class PacemakerWrapper:
             if not initial_potential.exists():
                 msg = f"Initial potential path does not exist: {initial_potential}"
                 raise FileNotFoundError(msg)
-            validate_safe_path(initial_potential)
             cmd.extend(["--initial-potential", str(initial_potential)])
 
         # Capture output for logging/debugging
@@ -131,6 +134,8 @@ class PacemakerWrapper:
         """
         validate_safe_path(input_file)
         validate_safe_path(output_dir)
+        if initial_potential:
+            validate_safe_path(initial_potential)
 
         if not input_file.exists():
             msg = f"Input file does not exist: {input_file}"
@@ -142,7 +147,6 @@ class PacemakerWrapper:
         cmd = ["pace_train", str(input_file)]
 
         if initial_potential:
-            validate_safe_path(initial_potential)
             if not initial_potential.exists():
                 msg = f"Initial potential path does not exist: {initial_potential}"
                 raise FileNotFoundError(msg)
@@ -163,16 +167,6 @@ class PacemakerWrapper:
             )
 
         # Return the path to the generated potential
-        # Note: Pacemaker input.yaml usually specifies output file name.
-        # We assume standard output or check where it went.
-        # But commonly it produces potential.yace in CWD or specified output.
-        # If input.yaml specifies output path relative to CWD, we need to know it.
-        # We assume for now it is "potential.yace" in the CWD of execution?
-        # subprocess.run uses default CWD unless specified.
-        # If input.yaml has paths, they are relative to CWD.
-        # We should probably run in output_dir or ensure input.yaml paths are absolute.
-        # But input_file is passed as argument.
-
         return output_dir / "potential.yace"
 
     def select_active_set(self, candidates_path: Path, num_select: int, output_path: Path) -> Path:

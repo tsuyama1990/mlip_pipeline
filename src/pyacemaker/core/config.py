@@ -138,7 +138,11 @@ class Constants(BaseSettings):
     version_regex: str = Field(
         default_factory=lambda: get_defaults()["version_regex"]
     )
-    skip_file_checks: bool = False
+
+    # Updated to load from defaults
+    skip_file_checks: bool = Field(
+        default_factory=lambda: get_defaults()["skip_file_checks"]
+    )
 
     # Oracle / DFT defaults
     default_dft_code: str = Field(
@@ -465,9 +469,8 @@ class MaceConfig(BaseModel):
 
         # Check if URL
         if v.startswith(("http://", "https://")):
-            # Simple URL validation regex to prevent injection chars
-            # Allows letters, numbers, dots, slashes, hyphens, underscores, colons (port)
-            if not re.match(r'^(http|https)://[a-zA-Z0-9\-\.]+(:\d+)?(/[\w\-\./?%&=]*)?$', v):
+            # Strict URL validation regex to prevent injection
+            if not re.match(r'^(http|https)://[a-zA-Z0-9\-\.]+(:\d+)?(/[\w\-\./:\+,=@]+)?$', v):
                  msg = f"Invalid model URL format: {v}"
                  raise ValueError(msg)
             return v
@@ -484,15 +487,6 @@ class MaceConfig(BaseModel):
                 # However, many users provide relative. We will resolve and check.
                 resolved = path.resolve()
                 cls._check_absolute_path(resolved, v)
-
-                # Check for traversal after resolution
-                # (validate_safe_path checks '..' in string, resolve handles symlinks)
-                # We assume resolve is safe if the OS handles it.
-
-                # Check if path is within a safe scope (optional but recommended)
-                # For general use, allowing any absolute path is okay if we trust the user config.
-                # But to satisfy strict security, we might want to restrict to specific directories.
-                # Here we just ensure it's absolute.
 
         except (ValueError, RuntimeError) as e:
             msg = f"Invalid model path structure: {e}"

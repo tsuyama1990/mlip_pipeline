@@ -2,10 +2,9 @@
 
 from collections.abc import Iterator
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from ase import Atoms
-from ase.calculators.singlepoint import SinglePointCalculator
 
 from pyacemaker.core.config import (
     DFTConfig,
