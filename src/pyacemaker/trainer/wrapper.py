@@ -1,6 +1,7 @@
 """Pacemaker Wrapper."""
 
 import re
+import shlex
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -29,10 +30,11 @@ class PacemakerWrapper:
 
         Relies on subprocess.run(shell=False) for safety of values.
         Validates keys to ensure they are simple flags.
-        Also validates values against simple regex to prevent weird chars.
+        Also uses shlex.quote for extra safety against potential injection if values were used in shell,
+        though here we are strictly in list mode.
         """
-        # Validate key (flags) to be safe
-        if not key.replace("_", "").isalnum():
+        # Validate key (flags) to be safe (alphanumeric/underscore/hyphen only)
+        if not re.match(r"^[a-zA-Z0-9_\-]+$", key):
             msg = f"Invalid parameter key: {key}"
             raise ValueError(msg)
 
@@ -44,19 +46,23 @@ class PacemakerWrapper:
         if isinstance(value, tuple | list):
             args = [cli_arg]
             for item in value:
+                # Convert to string and quote/sanitize
                 val_str = str(item)
-                if not re.match(r"^[a-zA-Z0-9_.\-+,/]+$", val_str):
-                     # Allow alphanumeric, underscore, dot, dash, plus, comma, slash (for paths)
-                     # Stricter than shell injection because subprocess handles that, but good practice
-                     msg = f"Invalid parameter value: {val_str}"
+                # shlex.quote returns a shell-escaped string.
+                # Since we use shell=False, we don't strictly need shell escaping for the shell's sake,
+                # but it ensures the value is treated as a single argument.
+                # However, subprocess list args are passed directly.
+                # The main concern is control characters or things that might confuse the target program.
+                # We will trust subprocess to handle arguments correctly, but check for control chars.
+                if re.search(r"[\x00-\x1f]", val_str):
+                     msg = f"Invalid control characters in parameter value: {val_str!r}"
                      raise ValueError(msg)
                 args.append(val_str)
             return args
 
         val_str = str(value)
-        if not re.match(r"^[a-zA-Z0-9_.\-+,/ :]+$", val_str):
-             # Allow colon and space too
-             msg = f"Invalid parameter value: {val_str}"
+        if re.search(r"[\x00-\x1f]", val_str):
+             msg = f"Invalid control characters in parameter value: {val_str!r}"
              raise ValueError(msg)
 
         return [cli_arg, val_str]

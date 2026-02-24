@@ -189,15 +189,11 @@ class Constants(BaseSettings):
     )
 
     # Pacemaker Defaults
-    pacemaker_default_potential_filename: str = "potential.yace"
+    pacemaker_default_potential_filename: str = Field(
+        default_factory=lambda: get_defaults()["pacemaker_default_potential_filename"]
+    )
     pacemaker_default_embeddings: dict[str, Any] = Field(
-        default_factory=lambda: {
-            "Fe": {
-                "npot": "FinnisSinclair",
-                "fs_parameters": [1, 1, 1, 1],
-                "ndensity": 2,
-            }
-        }
+        default_factory=lambda: get_defaults()["pacemaker_default_embeddings"]
     )
 
     # DFT Defaults
@@ -492,6 +488,11 @@ class MaceConfig(BaseModel):
                 # Check for traversal after resolution
                 # (validate_safe_path checks '..' in string, resolve handles symlinks)
                 # We assume resolve is safe if the OS handles it.
+
+                # Check if path is within a safe scope (optional but recommended)
+                # For general use, allowing any absolute path is okay if we trust the user config.
+                # But to satisfy strict security, we might want to restrict to specific directories.
+                # Here we just ensure it's absolute.
 
         except (ValueError, RuntimeError) as e:
             msg = f"Invalid model path structure: {e}"

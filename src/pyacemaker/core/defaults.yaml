@@ -229,3 +229,11 @@ allowed_feature_keys:
   - "source"
 
 allowed_potential_paths: []
+
+# Pacemaker specific defaults
+pacemaker_default_potential_filename: "potential.yace"
+pacemaker_default_embeddings:
+  Fe:
+    npot: "FinnisSinclair"
+    fs_parameters: [1, 1, 1, 1]
+    ndensity: 2
