@@ -933,6 +933,16 @@ class Step1DirectSamplingConfig(BaseModel):
         description="Optimization objective",
     )
 
+    @field_validator("objective")
+    @classmethod
+    def validate_objective(cls, v: str) -> str:
+        """Validate objective function."""
+        allowed = {"maximize_entropy", "random", "max_min_dist"}
+        if v not in allowed:
+            msg = f"Invalid objective '{v}'. Allowed: {allowed}"
+            raise ValueError(msg)
+        return v
+
 
 class Step2ActiveLearningConfig(BaseModel):
     """Configuration for Step 2: Active Learning."""

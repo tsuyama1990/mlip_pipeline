@@ -239,13 +239,18 @@ class MaceDistillationWorkflow:
             # This prevents loading all 10k+ structures into memory
 
             # 1. Load stream
-            input_iter = self.dataset_manager.load_iter(surrogate_pool_path)
+            # load_iter yields Atoms
+            atoms_input_iter = self.dataset_manager.load_iter(surrogate_pool_path)
 
-            # 2. Label stream (Generator-based batching via compute_batch)
+            # 2. Convert Atoms to StructureMetadata for Oracle
+            # This ensures type safety for compute_batch
+            metadata_input_iter = (atoms_to_metadata(a) for a in atoms_input_iter)
+
+            # 3. Label stream (Generator-based batching via compute_batch)
             # compute_batch consumes StructureMetadata and yields StructureMetadata (with energy/forces)
-            labeled_metadata_stream = self.mace_oracle.compute_batch(input_iter)
+            labeled_metadata_stream = self.mace_oracle.compute_batch(metadata_input_iter)
 
-            # 3. Convert back to Atoms for writing
+            # 4. Convert back to Atoms for writing
             atoms_iter = stream_metadata_to_atoms(labeled_metadata_stream)
 
             # 4. Save stream using batch write to optimize I/O

@@ -29,10 +29,6 @@ def mock_dataset_manager(tmp_path: Path) -> Any:
     # Use real DatasetManager with a temp file
     from pyacemaker.oracle.dataset import DatasetManager
     dm = DatasetManager()
-    # Mock save_metadata_stream to simulate writing without complex setup
-    # Actually, we want to test load_iter streaming, so we need a real file on disk.
-    # But for step5, we load from 'surrogate_pool_path'.
-    # We can pre-create this file.
     return dm
 
 @pytest.fixture
@@ -90,10 +86,8 @@ def test_step5_surrogate_labeling_calls_compute_batch(workflow: MaceDistillation
 
     # Create a real surrogate pool file
     pool_path = tmp_path / "surrogate.xyz"
-    # We need to write valid data that DatasetManager can read.
-    # DatasetManager reads "Framed Pickle" format.
-    # Let's use DatasetManager to write it first.
     from ase import Atoms
+
     from pyacemaker.oracle.dataset import DatasetManager
 
     dm = DatasetManager()
@@ -103,46 +97,13 @@ def test_step5_surrogate_labeling_calls_compute_batch(workflow: MaceDistillation
     state.artifacts["surrogate_pool_path"] = str(pool_path)
     state.artifacts["mace_model_path"] = "model.mace"
 
-    # We need to mock compute_batch to actually consume the iterator and return something
-    # matching the expected flow (Metadata -> Metadata)
-    # But wait, step5 calls dm.load_iter -> compute_batch -> stream_metadata_to_atoms -> write
-    # The real dm.load_iter returns Atoms.
-    # compute_batch expects Metadata.
-    # Ah, step5 does: input_iter = self.dataset_manager.load_iter(surrogate_pool_path)
-    # labeled_metadata_stream = self.mace_oracle.compute_batch(input_iter)
-    # This implies compute_batch handles Atoms or input_iter should be Metadata.
-
-    # Let's check mace_oracle.compute_batch signature. It takes Iterable[StructureMetadata].
-    # But dm.load_iter yields Atoms.
-    # This is a type mismatch in the implementation of step5!
-    # "input_iter = self.dataset_manager.load_iter(surrogate_pool_path)" -> Yields Atoms.
-    # "self.mace_oracle.compute_batch(input_iter)" -> Expects Metadata.
-
-    # FIX: We need to convert Atoms to Metadata before passing to compute_batch in step5.
-    # I will patch step5 logic in the test first to see it fail, or fix the implementation.
-    # Wait, previous refactor plan step 2 says: "Refactored step5_surrogate_labeling to use mace_oracle.compute_batch".
-    # And the code shows:
-    # input_iter = self.dataset_manager.load_iter(surrogate_pool_path)
-    # labeled_metadata_stream = self.mace_oracle.compute_batch(input_iter)
-
-    # mace_oracle.compute_batch expects StructureMetadata.
-    # dm.load_iter yields Atoms.
-    # This IS a bug. I should fix it in mace_workflow.py.
-
-    # For now, let's assume I fix it.
-    # This test verifies the fix.
-
     # Mock _write_labeled_stream to avoid output file I/O complexity
     workflow._write_labeled_stream = MagicMock(return_value=2)
 
-    # We need to patch atoms_to_metadata or ensure compute_batch handles atoms (it doesn't).
-    # Real dataset manager is used.
-
     # Mock mace_oracle.compute_batch to return metadata iterator
-    def mock_compute(iterator):
-        for item in iterator:
-            # item is StructureMetadata (after fix)
-            yield item
+    def mock_compute(iterator: Any) -> Any:
+        # yield from iterator but item is StructureMetadata (after fix)
+        yield from iterator
     mock_mace_oracle.compute_batch.side_effect = mock_compute
 
     # Call step5
@@ -156,8 +117,9 @@ def test_step5_handles_error(workflow: MaceDistillationWorkflow, mock_mace_oracl
     pool_path = tmp_path / "surrogate_err.xyz"
 
     # Create dummy file
-    from pyacemaker.oracle.dataset import DatasetManager
     from ase import Atoms
+
+    from pyacemaker.oracle.dataset import DatasetManager
     DatasetManager().save([Atoms("H")], pool_path)
 
     state.artifacts["surrogate_pool_path"] = str(pool_path)
@@ -174,12 +136,10 @@ def test_step7_delta_learning_calls_trainer(workflow: MaceDistillationWorkflow, 
     state.artifacts["pacemaker_potential_path"] = "base.yace"
     state.artifacts["dft_dataset_path"] = "dft_data.xyz"
 
-    # Mock dataset load (returns atoms)
-    # mock_dataset_manager is now a real DatasetManager, so we need to mock load_iter on it
-    # or write a real file.
-    # Writing a real file is better for integration testing.
-    from pyacemaker.oracle.dataset import DatasetManager
+    # Write a real file for DFT dataset
     from ase import Atoms
+
+    from pyacemaker.oracle.dataset import DatasetManager
     dft_path = tmp_path / "dft_data.xyz"
     DatasetManager().save([Atoms("H")], dft_path)
     state.artifacts["dft_dataset_path"] = str(dft_path)
