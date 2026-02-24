@@ -226,7 +226,6 @@ class MaceDistillationWorkflow:
 
             mace_model_path_str = state.artifacts.get("mace_model_path")
             if not mace_model_path_str:
-                 # Fallback or error? Usually error if AL loop succeeded.
                  logger.warning("mace_model_path missing")
                  raise ValueError("Artifact 'mace_model_path' missing in state")
 
@@ -253,14 +252,15 @@ class MaceDistillationWorkflow:
             # 4. Convert back to Atoms for writing
             atoms_iter = stream_metadata_to_atoms(labeled_metadata_stream)
 
-            # 4. Save stream using batch write to optimize I/O
+            # 5. Save stream using batch write to optimize I/O
+            # Use self.write_buffer_size implicitly in _write_labeled_stream
             count = self._write_labeled_stream(atoms_iter, labeled_pool_path)
 
             logger.info(f"Labeled {count} surrogate structures in {labeled_pool_path}")
             state.artifacts["labeled_surrogate_path"] = str(labeled_pool_path)
             state.current_step = 6
         except Exception as e:
-            logger.error(f"Step 5 failed: {e}")
+            logger.error(f"Step 5 failed while processing {surrogate_pool_path_str}: {e}")
             raise
 
         return state

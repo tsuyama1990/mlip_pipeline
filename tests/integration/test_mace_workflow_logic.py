@@ -128,8 +128,46 @@ def test_step5_handles_error(workflow: MaceDistillationWorkflow, mock_mace_oracl
     # Mock compute_batch to raise exception
     mock_mace_oracle.compute_batch.side_effect = RuntimeError("Oracle Failed")
 
+    # Use check to ensure error message context is logged/raised
+    # Since workflow re-raises, we expect RuntimeError
     with pytest.raises(RuntimeError, match="Oracle Failed"):
         workflow.step5_surrogate_labeling(state)
+
+def test_step5_chunked_streaming(workflow: MaceDistillationWorkflow, mock_mace_oracle: MagicMock, tmp_path: Path) -> None:
+    """Verify that step5 processes large files in chunks without OOM."""
+    state = PipelineState(current_step=5)
+    pool_path = tmp_path / "surrogate_large.xyz"
+
+    # Create a larger file (e.g. 100 atoms)
+    # We want to ensure that compute_batch receives an iterator, not a list.
+    from pyacemaker.oracle.dataset import DatasetManager
+    from ase import Atoms
+
+    n_atoms = 100
+    atoms_list = [Atoms("H") for _ in range(n_atoms)]
+    DatasetManager().save(atoms_list, pool_path)
+
+    state.artifacts["surrogate_pool_path"] = str(pool_path)
+    state.artifacts["mace_model_path"] = "model.mace"
+
+    # Mock _write_labeled_stream
+    workflow._write_labeled_stream = MagicMock(return_value=n_atoms)
+
+    # Mock compute_batch to check if input is an iterator
+    def mock_compute_check_iter(iterator: Any) -> Any:
+        # Check if it's an iterator (not a list)
+        assert iter(iterator) is iterator
+        # Consume it
+        count = 0
+        for _ in iterator:
+            count += 1
+            yield StructureMetadata()
+        assert count == n_atoms
+
+    mock_mace_oracle.compute_batch.side_effect = mock_compute_check_iter
+
+    workflow.step5_surrogate_labeling(state)
+    assert mock_mace_oracle.compute_batch.called
 
 def test_step7_delta_learning_calls_trainer(workflow: MaceDistillationWorkflow, mock_pacemaker_trainer: MagicMock, mock_dataset_manager: MagicMock, tmp_path: Path) -> None:
     state = PipelineState(current_step=7)
