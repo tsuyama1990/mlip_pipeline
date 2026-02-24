@@ -1,6 +1,7 @@
-"""UAT for Cycle 02."""
+"""UAT tests for Cycle 02 Features."""
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -62,10 +63,11 @@ def test_scenario_01_intelligent_structure_generation(uat_config: PYACEMAKERConf
         structure_generator=orchestrator.structure_generator,
         validation_path=orchestrator.validation_path,
         training_path=orchestrator.training_path,
+        active_learner=orchestrator.active_learner,
     )
 
-    # Use internal workflow method
-    pool_path = workflow._step1_direct_sampling(uat_config.distillation)
+    # Use internal workflow method (updated to use public method name)
+    pool_path = workflow.step1_direct_sampling(uat_config.distillation)
 
     assert pool_path.exists()
 
@@ -92,13 +94,14 @@ def test_scenario_02_active_learning_selection(uat_config: PYACEMAKERConfig) -> 
         structure_generator=orchestrator.structure_generator,
         validation_path=orchestrator.validation_path,
         training_path=orchestrator.training_path,
+        active_learner=orchestrator.active_learner,
     )
 
     # Step 1 first to generate pool
-    pool_path = workflow._step1_direct_sampling(uat_config.distillation)
+    pool_path = workflow.step1_direct_sampling(uat_config.distillation)
 
     # Step 2
-    workflow._step2_active_learning_loop(uat_config.distillation, pool_path)
+    workflow.step2_active_learning_loop(uat_config.distillation, pool_path)
 
     # Verify dataset file exists and has entries
     assert orchestrator.dataset_path.exists()

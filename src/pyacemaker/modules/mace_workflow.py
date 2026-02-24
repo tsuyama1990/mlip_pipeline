@@ -5,6 +5,7 @@ from collections.abc import Iterator
 from itertools import islice
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from loguru import logger
 
@@ -70,7 +71,7 @@ class MaceDistillationWorkflow:
         self.active_learner = active_learner
 
     def run(self) -> ModuleResult:
-        """Run the workflow."""
+        """Run the workflow sequentially (mostly for testing or simple runs)."""
         start_time = time.time()
         try:
             dist_config = self.config.distillation
@@ -92,9 +93,6 @@ class MaceDistillationWorkflow:
                     metrics={},
                     parameters={},
                 )
-
-            # Execute the surrogate pipeline (Steps 4-7)
-            # We break this down for Orchestrator usage, but for run() we execute sequentially
 
             # Step 4: Surrogate Data Generation
             surrogate_structures_path = self.step4_surrogate_data_generation(
@@ -162,7 +160,7 @@ class MaceDistillationWorkflow:
         self.logger.info("Step 2: MACE Active Learning Loop")
         validate_safe_path(pool_path)
 
-        calculated_ids: set[Any] = set()
+        calculated_ids: set[UUID] = set()
         current_potential: Potential | None = None
 
         max_cycles = dist_config.step2_active_learning.cycles
@@ -193,7 +191,7 @@ class MaceDistillationWorkflow:
         self,
         dist_config: DistillationConfig,
         pool_path: Path,
-        calculated_ids: set[Any]
+        calculated_ids: set[UUID]
     ) -> list[StructureMetadata] | None:
         """Select candidates using uncertainty sampling.
 
@@ -224,7 +222,7 @@ class MaceDistillationWorkflow:
         self,
         dist_config: DistillationConfig,
         pool_path: Path,
-        calculated_ids: set[Any],
+        calculated_ids: set[UUID],
         current_potential: Potential | None
     ) -> Potential | None:
         """Execute a single iteration of Active Learning."""
@@ -284,11 +282,9 @@ class MaceDistillationWorkflow:
 
             # Ensure we validate surrogate structures too before saving
             def validating_iter() -> Iterator[StructureMetadata]:
-                count = 0
-                for s in limited_iter:
+                for count, s in enumerate(limited_iter, 1):
                     validate_structure_integrity(s)
                     yield s
-                    count += 1
                     if count % 100 == 0:
                         self.logger.info(f"Generated {count} surrogate structures")
 
@@ -387,10 +383,11 @@ class MaceDistillationWorkflow:
                     initial_potential=base_potential,
                     weight_dft=weight_dft,
                 )
-            return base_potential
         except Exception:
             self.logger.exception("Step 7 (Delta Learning) failed")
             raise
+        else:
+            return base_potential
 
     def _get_exploration_seeds(self, n_seeds: int = 20) -> list[StructureMetadata]:
         """Get seed structures for exploration."""

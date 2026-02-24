@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from pyacemaker.core.base import Metrics, ModuleResult
-from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
+from pyacemaker.core.config import CONSTANTS, DistillationConfig, PYACEMAKERConfig
 from pyacemaker.core.dataset import DatasetSplitter, SeedSelector
 from pyacemaker.core.factory import ModuleFactory
 from pyacemaker.core.interfaces import (
@@ -135,16 +135,19 @@ class Orchestrator(IOrchestrator):
         except Exception:
             self.logger.exception("Failed to save pipeline state")
 
-    def _run_mace_distillation(self) -> ModuleResult:
-        """Run the 7-Step MACE Distillation Workflow with State Management."""
-        if not self.mace_trainer:
-            msg = "MACE Trainer not initialized for MACE workflow."
-            raise RuntimeError(msg)
-        if not self.mace_oracle:
-            msg = "MACE Oracle not initialized for MACE workflow."
-            raise RuntimeError(msg)
+    def _create_mace_workflow(self) -> MaceDistillationWorkflow:
+        """Create MaceDistillationWorkflow instance.
 
-        workflow = MaceDistillationWorkflow(
+        Extracted for testability and dependency injection.
+        """
+        if not self.mace_trainer:
+             msg = "MACE Trainer not initialized for MACE workflow."
+             raise RuntimeError(msg)
+        if not self.mace_oracle:
+             msg = "MACE Oracle not initialized for MACE workflow."
+             raise RuntimeError(msg)
+
+        return MaceDistillationWorkflow(
             config=self.config,
             dataset_manager=self.dataset_manager,
             dataset_path=self.dataset_path,
@@ -158,6 +161,13 @@ class Orchestrator(IOrchestrator):
             training_path=self.training_path,
             active_learner=self.active_learner,
         )
+
+    def _run_mace_distillation(self) -> ModuleResult:
+        """Run the 7-Step MACE Distillation Workflow with State Management."""
+        try:
+            workflow = self._create_mace_workflow()
+        except RuntimeError as e:
+            return ModuleResult(status="failed", metrics=Metrics(), error=str(e))
 
         state = self._load_pipeline_state()
         dist_config = self.config.distillation
@@ -195,7 +205,12 @@ class Orchestrator(IOrchestrator):
                 error=str(e),
             )
 
-    def _run_step1(self, state: PipelineState, workflow: MaceDistillationWorkflow, dist_config: Any) -> None:
+    def _run_step1(
+        self,
+        state: PipelineState,
+        workflow: MaceDistillationWorkflow,
+        dist_config: DistillationConfig
+    ) -> None:
         """Execute Step 1: DIRECT Sampling."""
         if state.current_step <= 1:
             self.logger.info("Executing Step 1: DIRECT Sampling")
@@ -208,7 +223,12 @@ class Orchestrator(IOrchestrator):
         else:
             self.logger.info("Skipping Step 1 (Completed)")
 
-    def _run_step2_3(self, state: PipelineState, workflow: MaceDistillationWorkflow, dist_config: Any) -> Potential | None:
+    def _run_step2_3(
+        self,
+        state: PipelineState,
+        workflow: MaceDistillationWorkflow,
+        dist_config: DistillationConfig
+    ) -> Potential | None:
         """Execute Steps 2 & 3: Active Learning & Fine-tuning."""
         fine_tuned_potential = None
 
@@ -251,13 +271,17 @@ class Orchestrator(IOrchestrator):
                     metrics={},
                     parameters={}
                 )
-                if hasattr(self.mace_oracle, "update_model"):
+                if self.mace_oracle and hasattr(self.mace_oracle, "update_model"):
                     self.mace_oracle.update_model(fine_tuned_pot_path)
 
         return fine_tuned_potential
 
     def _run_step4(
-        self, state: PipelineState, workflow: MaceDistillationWorkflow, dist_config: Any, fine_tuned_potential: Potential | None
+        self,
+        state: PipelineState,
+        workflow: MaceDistillationWorkflow,
+        dist_config: DistillationConfig,
+        fine_tuned_potential: Potential | None
     ) -> None:
         """Execute Step 4: Surrogate Data Generation."""
         if state.current_step <= 4:
@@ -278,7 +302,11 @@ class Orchestrator(IOrchestrator):
             self.logger.info("Skipping Step 4 (Completed)")
 
     def _run_step5(
-        self, state: PipelineState, workflow: MaceDistillationWorkflow, dist_config: Any, fine_tuned_potential: Potential | None
+        self,
+        state: PipelineState,
+        workflow: MaceDistillationWorkflow,
+        dist_config: DistillationConfig,
+        fine_tuned_potential: Potential | None
     ) -> None:
         """Execute Step 5: Surrogate Labeling."""
         if state.current_step <= 5:
@@ -299,7 +327,12 @@ class Orchestrator(IOrchestrator):
         else:
             self.logger.info("Skipping Step 5 (Completed)")
 
-    def _run_step6(self, state: PipelineState, workflow: MaceDistillationWorkflow, dist_config: Any) -> Potential | None:
+    def _run_step6(
+        self,
+        state: PipelineState,
+        workflow: MaceDistillationWorkflow,
+        dist_config: DistillationConfig
+    ) -> Potential | None:
         """Execute Step 6: Pacemaker Base Training."""
         base_ace_potential = None
 
@@ -332,7 +365,11 @@ class Orchestrator(IOrchestrator):
         return base_ace_potential
 
     def _run_step7(
-        self, state: PipelineState, workflow: MaceDistillationWorkflow, dist_config: Any, base_ace_potential: Potential | None
+        self,
+        state: PipelineState,
+        workflow: MaceDistillationWorkflow,
+        dist_config: DistillationConfig,
+        base_ace_potential: Potential | None
     ) -> Potential:
         """Execute Step 7: Delta Learning."""
         final_potential = None

@@ -48,6 +48,7 @@ def mock_workflow(mock_config, tmp_path):
     mace_trainer = MagicMock()
     dynamics_engine = MagicMock()
     structure_generator = MagicMock()
+    active_learner = MagicMock()
 
     return MaceDistillationWorkflow(
         config=mock_config,
@@ -61,6 +62,7 @@ def mock_workflow(mock_config, tmp_path):
         structure_generator=structure_generator,
         validation_path=tmp_path / "validation.pckl.gzip",
         training_path=tmp_path / "training.pckl.gzip",
+        active_learner=active_learner,
     )
 
 
@@ -87,7 +89,7 @@ def test_scenario_01_successful_batch_labeling(mock_workflow, tmp_path):
 
     # WHEN the Orchestrator executes Step 5 (via workflow)
     # We call the internal step method directly for UAT
-    dataset_path = mock_workflow._step5_surrogate_labeling(surrogate_path)
+    dataset_path = mock_workflow.step5_surrogate_labeling(mock_workflow.config.distillation, surrogate_path)
 
     # THEN it should run batch prediction on the structures
     mock_workflow.mace_oracle.compute_batch.assert_called_once()
@@ -125,7 +127,7 @@ def test_scenario_02_base_ace_training(mock_workflow, tmp_path):
     )
 
     # WHEN the Orchestrator executes Step 6
-    potential = mock_workflow._step6_pacemaker_base_training(dataset_path)
+    potential = mock_workflow.step6_pacemaker_base_training(dataset_path)
 
     # THEN it should generate a valid input.yaml (Implied by Trainer.train logic)
     # AND it should invoke the training process
@@ -142,9 +144,9 @@ def test_scenario_03_error_handling(mock_workflow, tmp_path):
     mock_workflow.mace_oracle.compute_batch.side_effect = Exception("Oracle failure")
 
     # We mock earlier steps to return valid paths so we reach labeling/calculation
-    mock_workflow._step1_direct_sampling = MagicMock(return_value=tmp_path / "pool.pckl")
-    mock_workflow._step2_active_learning_loop = MagicMock(return_value=None)
-    mock_workflow._step4_surrogate_data_generation = MagicMock(return_value=tmp_path / "surrogate.pckl")
+    mock_workflow.step1_direct_sampling = MagicMock(return_value=tmp_path / "pool.pckl")
+    mock_workflow.step2_active_learning_loop = MagicMock(return_value=None)
+    mock_workflow.step4_surrogate_data_generation = MagicMock(return_value=tmp_path / "surrogate.pckl")
 
     # Need to mock the file existence for step 5 to proceed to load stream
     (tmp_path / "surrogate.pckl").touch()
