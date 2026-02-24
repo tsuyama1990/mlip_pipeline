@@ -1,8 +1,11 @@
 """Pacemaker Wrapper."""
 
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
+
+from pyacemaker.core.validation import validate_safe_path
 
 
 class PacemakerWrapper:
@@ -14,6 +17,10 @@ class PacemakerWrapper:
             msg = f"Dataset path does not exist: {dataset_path}"
             raise FileNotFoundError(msg)
 
+        # Validate safety
+        validate_safe_path(dataset_path)
+        validate_safe_path(output_dir)
+
         if not output_dir.exists():
             output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -22,6 +29,7 @@ class PacemakerWrapper:
 
         Relies on subprocess.run(shell=False) for safety of values.
         Validates keys to ensure they are simple flags.
+        Also validates values against simple regex to prevent weird chars.
         """
         # Validate key (flags) to be safe
         if not key.replace("_", "").isalnum():
@@ -36,10 +44,22 @@ class PacemakerWrapper:
         if isinstance(value, tuple | list):
             args = [cli_arg]
             for item in value:
-                args.append(str(item))
+                val_str = str(item)
+                if not re.match(r"^[a-zA-Z0-9_.\-+,/]+$", val_str):
+                     # Allow alphanumeric, underscore, dot, dash, plus, comma, slash (for paths)
+                     # Stricter than shell injection because subprocess handles that, but good practice
+                     msg = f"Invalid parameter value: {val_str}"
+                     raise ValueError(msg)
+                args.append(val_str)
             return args
 
-        return [cli_arg, str(value)]
+        val_str = str(value)
+        if not re.match(r"^[a-zA-Z0-9_.\-+,/ :]+$", val_str):
+             # Allow colon and space too
+             msg = f"Invalid parameter value: {val_str}"
+             raise ValueError(msg)
+
+        return [cli_arg, val_str]
 
     def train(
         self,
@@ -74,6 +94,7 @@ class PacemakerWrapper:
             if not initial_potential.exists():
                 msg = f"Initial potential path does not exist: {initial_potential}"
                 raise FileNotFoundError(msg)
+            validate_safe_path(initial_potential)
             cmd.extend(["--initial-potential", str(initial_potential)])
 
         # Capture output for logging/debugging
@@ -102,6 +123,9 @@ class PacemakerWrapper:
         Returns:
             Path to the trained potential file.
         """
+        validate_safe_path(input_file)
+        validate_safe_path(output_dir)
+
         if not input_file.exists():
             msg = f"Input file does not exist: {input_file}"
             raise FileNotFoundError(msg)
@@ -112,6 +136,7 @@ class PacemakerWrapper:
         cmd = ["pace_train", str(input_file)]
 
         if initial_potential:
+            validate_safe_path(initial_potential)
             if not initial_potential.exists():
                 msg = f"Initial potential path does not exist: {initial_potential}"
                 raise FileNotFoundError(msg)
@@ -157,6 +182,9 @@ class PacemakerWrapper:
 
         """
         # Validate inputs strictly even here
+        validate_safe_path(candidates_path)
+        validate_safe_path(output_path)
+
         if not candidates_path.exists():
             msg = f"Candidates path does not exist: {candidates_path}"
             raise FileNotFoundError(msg)

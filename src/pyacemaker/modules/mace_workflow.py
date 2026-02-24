@@ -1,5 +1,6 @@
 """MACE Distillation Workflow Module."""
 
+import time
 from collections.abc import Iterator
 from itertools import islice
 from pathlib import Path
@@ -20,6 +21,7 @@ from pyacemaker.core.interfaces import (
 from pyacemaker.core.utils import (
     atoms_to_metadata,
     save_metadata_stream,
+    validate_structure_integrity,
 )
 from pyacemaker.domain_models.models import (
     Potential,
@@ -66,6 +68,7 @@ class MaceDistillationWorkflow:
 
     def run(self) -> ModuleResult:
         """Run the workflow."""
+        start_time = time.time()
         try:
             dist_config = self.config.distillation
 
@@ -78,8 +81,9 @@ class MaceDistillationWorkflow:
             if not fine_tuned_potential:
                 # Fallback to configured model if no fine-tuning happened
                 self.logger.warning("No fine-tuning performed. Using base model from config.")
+                model_path = self.config.oracle.mace.model_path if self.config.oracle.mace else "mock"
                 fine_tuned_potential = Potential(
-                    path=Path(self.config.oracle.mace.model_path if self.config.oracle.mace else "mock"),
+                    path=Path(model_path),
                     type=PotentialType.MACE,
                     version="1.0",
                     metrics={},
@@ -104,9 +108,10 @@ class MaceDistillationWorkflow:
             # Step 7: Delta Learning
             final_potential = self._step7_delta_learning(dist_config, base_ace_potential)
 
+            elapsed = time.time() - start_time
             return ModuleResult(
                 status="success",
-                metrics=Metrics(),
+                metrics=Metrics.model_validate({"elapsed": elapsed}),
                 artifacts={"potential": str(final_potential.path)}
             )
         except Exception as e:
@@ -156,9 +161,13 @@ class MaceDistillationWorkflow:
             if current_potential and hasattr(self.mace_oracle, "update_model"):
                 self.mace_oracle.update_model(current_potential.path)
 
-            potential = self._execute_active_learning_iteration(
-                dist_config, pool_path, calculated_ids, current_potential
-            )
+            try:
+                potential = self._execute_active_learning_iteration(
+                    dist_config, pool_path, calculated_ids, current_potential
+                )
+            except Exception as e:
+                self.logger.error(f"Active learning iteration failed: {e}. Trying to continue.")
+                continue
 
             if potential is None:
                 self.logger.info("Iteration stopped (no candidates or convergence).")
@@ -209,6 +218,8 @@ class MaceDistillationWorkflow:
         # Mark selected as calculated
         for s in selected:
             calculated_ids.add(s.id)
+            # Validate structure before compute
+            validate_structure_integrity(s)
 
         # Compute DFT (Ground Truth) using primary Oracle
         self.logger.info(f"Computing DFT for {len(selected)} structures")

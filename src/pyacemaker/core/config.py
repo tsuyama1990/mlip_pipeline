@@ -188,6 +188,18 @@ class Constants(BaseSettings):
         default_factory=lambda: get_defaults()["trainer_mock_potential_name"]
     )
 
+    # Pacemaker Defaults
+    pacemaker_default_potential_filename: str = "potential.yace"
+    pacemaker_default_embeddings: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "Fe": {
+                "npot": "FinnisSinclair",
+                "fs_parameters": [1, 1, 1, 1],
+                "ndensity": 2,
+            }
+        }
+    )
+
     # DFT Defaults
     default_dft_ecutwfc: float = Field(
         default_factory=lambda: get_defaults()["dft"]["ecutwfc"]

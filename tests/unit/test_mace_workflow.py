@@ -18,7 +18,6 @@ from pyacemaker.core.interfaces import (
     Trainer,
     UncertaintyModel,
 )
-from pyacemaker.oracle.mace_oracle import MaceSurrogateOracle
 from pyacemaker.core.utils import validate_structure_integrity
 from pyacemaker.domain_models.models import (
     Potential,
@@ -29,6 +28,7 @@ from pyacemaker.domain_models.models import (
 )
 from pyacemaker.modules.mace_workflow import MaceDistillationWorkflow
 from pyacemaker.oracle.dataset import DatasetManager
+from pyacemaker.oracle.mace_oracle import MaceSurrogateOracle
 
 # Constants
 TEST_TARGET_POINTS = 5
@@ -192,5 +192,50 @@ def test_mace_workflow_oracle_failure(base_config: PYACEMAKERConfig) -> None:
     )
 
     result = workflow.run()
-    assert result.status == "failed"
-    assert "Oracle Failed" in result.error
+    # It should not fail completely, but try to continue or finish AL loop early
+    # Step 2 catches Exception and continues loop.
+    # If loop finishes (max_cycles), it proceeds to next steps.
+    # So run() should return success but AL might not have selected anything.
+    assert result.status == "success"
+    # Check logs or metrics if possible, but assert success handles the "no crash" requirement.
+
+
+def test_mace_workflow_recovery_after_failure(base_config: PYACEMAKERConfig) -> None:
+    """Test that workflow continues if one AL iteration fails."""
+    mock_sg = MagicMock(spec=StructureGenerator)
+    mock_sg.generate_direct_samples.return_value = streaming_generator_mock(TEST_TARGET_POINTS)
+
+    mock_dft_oracle = MagicMock(spec=Oracle)
+    mock_mace_oracle = MagicMock(spec=MaceSurrogateOracle)
+
+    # Fail first call, succeed second call
+    def side_effect(structures):
+        if mock_mace_oracle.compute_uncertainty.call_count == 1:
+            raise RuntimeError("Temporary Failure")
+        yield from (create_dummy_structure(uncertainty=0.9) for _ in structures)
+
+    mock_mace_oracle.compute_uncertainty.side_effect = side_effect
+    # Mock compute_batch
+    mock_mace_oracle.compute_batch.side_effect = lambda s: s
+
+    # Ensure multiple cycles
+    base_config.distillation.step2_active_learning.cycles = 2
+
+    workflow = MaceDistillationWorkflow(
+        config=base_config,
+        dataset_manager=DatasetManager(),
+        dataset_path=Path("ds"),
+        oracle=mock_dft_oracle,
+        mace_oracle=mock_mace_oracle,
+        trainer=MagicMock(),
+        mace_trainer=MagicMock(),
+        dynamics_engine=MagicMock(),
+        structure_generator=mock_sg,
+        validation_path=Path("val"),
+        training_path=Path("train"),
+    )
+
+    result = workflow.run()
+    assert result.status == "success"
+    # Should have tried twice
+    assert mock_mace_oracle.compute_uncertainty.call_count >= 2

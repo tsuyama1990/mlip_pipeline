@@ -47,15 +47,9 @@ class PacemakerTrainer(BaseTrainer):
         initial_potential: Path | None = None,
     ) -> Path:
         """Generate input.yaml for Pacemaker."""
-        # Defaults
+        # Defaults using CONSTANTS
         default_elements = CONSTANTS.default_trainer_elements
-        default_embeddings = {
-            "Fe": {
-                "npot": "FinnisSinclair",
-                "fs_parameters": [1, 1, 1, 1],
-                "ndensity": 2,
-            }
-        }
+        default_embeddings = CONSTANTS.pacemaker_default_embeddings
 
         # Override with config if present
         elements = config.get("elements", default_elements)
@@ -159,7 +153,7 @@ class PacemakerTrainer(BaseTrainer):
             if self.trainer_config.mock:
                 self.logger.info("Mock Mode: Skipping pace_train execution.")
                 # Mock output
-                output_pot_path = work_dir / "potential.yace"
+                output_pot_path = work_dir / CONSTANTS.pacemaker_default_potential_filename
                 output_pot_path.touch()
 
             else:
