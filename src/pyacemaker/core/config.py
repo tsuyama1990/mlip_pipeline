@@ -409,6 +409,14 @@ class Constants(BaseSettings):
         description="Chunk size for Oracle batch processing"
     )
 
+    # Workflow Defaults (Added for refactoring)
+    workflow_log_interval: int = Field(
+        default=100, description="Logging interval for structure processing"
+    )
+    workflow_default_seeds: int = Field(
+        default=5, description="Default number of seeds for exploration"
+    )
+
     @field_validator("max_config_size")
     @classmethod
     def validate_max_config_size(cls, v: int) -> int:

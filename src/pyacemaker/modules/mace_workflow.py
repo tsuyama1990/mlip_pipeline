@@ -10,7 +10,7 @@ from uuid import UUID
 from loguru import logger
 
 from pyacemaker.core.base import Metrics, ModuleResult
-from pyacemaker.core.config import DistillationConfig, PYACEMAKERConfig
+from pyacemaker.core.config import CONSTANTS, DistillationConfig, PYACEMAKERConfig
 from pyacemaker.core.dataset import SeedSelector
 from pyacemaker.core.interfaces import (
     DynamicsEngine,
@@ -83,9 +83,12 @@ class MaceDistillationWorkflow:
             fine_tuned_potential = self.step2_active_learning_loop(dist_config, pool_path)
 
             if not fine_tuned_potential:
-                # Fallback to configured model if no fine-tuning happened
                 self.logger.warning("No fine-tuning performed. Using base model from config.")
-                model_path = self.config.oracle.mace.model_path if self.config.oracle.mace else "mock"
+                model_path = (
+                    self.config.oracle.mace.model_path
+                    if self.config.oracle.mace
+                    else CONSTANTS.default_mace_model_path
+                )
                 fine_tuned_potential = Potential(
                     path=Path(model_path),
                     type=PotentialType.MACE,
@@ -124,10 +127,18 @@ class MaceDistillationWorkflow:
                 error=str(e),
             )
 
+    def _validate_pool_filename(self, filename: str) -> None:
+        """Ensure pool filename is safe and does not contain path separators."""
+        if "/" in filename or "\\" in filename:
+            msg = f"Pool filename '{filename}' must not contain directory separators."
+            raise ValueError(msg)
+
     def step1_direct_sampling(self, dist_config: DistillationConfig) -> Path:
         """Step 1: DIRECT Sampling (Entropy Maximization)."""
         self.logger.info("Step 1: DIRECT Sampling")
         try:
+            self._validate_pool_filename(dist_config.pool_file)
+
             samples_iter = self.structure_generator.generate_direct_samples(
                 n_samples=dist_config.step1_direct_sampling.target_points,
                 objective=dist_config.step1_direct_sampling.objective,
@@ -268,7 +279,8 @@ class MaceDistillationWorkflow:
         """Step 4: Surrogate Data Generation."""
         self.logger.info("Step 4: Surrogate Data Generation")
         try:
-            seeds = self._get_exploration_seeds(n_seeds=5)
+            # Use constant for default seeds
+            seeds = self._get_exploration_seeds(n_seeds=CONSTANTS.workflow_default_seeds)
             # Ensure dynamics_engine returns iterator
             surrogate_iter = self.dynamics_engine.run_exploration(fine_tuned_potential, seeds)
 
@@ -285,7 +297,7 @@ class MaceDistillationWorkflow:
                 for count, s in enumerate(limited_iter, 1):
                     validate_structure_integrity(s)
                     yield s
-                    if count % 100 == 0:
+                    if count % CONSTANTS.workflow_log_interval == 0:
                         self.logger.info(f"Generated {count} surrogate structures")
 
             save_metadata_stream(

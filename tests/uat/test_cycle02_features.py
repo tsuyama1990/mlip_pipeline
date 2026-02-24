@@ -16,6 +16,7 @@ from pyacemaker.core.config import (
     Step1DirectSamplingConfig,
     Step2ActiveLearningConfig,
 )
+from pyacemaker.core.utils import atoms_to_metadata
 from pyacemaker.modules.mace_workflow import MaceDistillationWorkflow
 from pyacemaker.oracle.dataset import DatasetManager
 from pyacemaker.orchestrator import Orchestrator
@@ -66,15 +67,28 @@ def test_scenario_01_intelligent_structure_generation(uat_config: PYACEMAKERConf
         active_learner=orchestrator.active_learner,
     )
 
-    # Use internal workflow method (updated to use public method name)
+    # Use internal workflow method
     pool_path = workflow.step1_direct_sampling(uat_config.distillation)
 
     assert pool_path.exists()
 
     manager = DatasetManager()
-    structures = list(manager.load_iter(pool_path))
+    atoms_list = list(manager.load_iter(pool_path))
 
-    assert len(structures) == 50
+    # Validate count
+    assert len(atoms_list) == 50
+
+    # Validate content
+    for atoms in atoms_list:
+        # Convert back to metadata to verify structure fields
+        s = atoms_to_metadata(atoms)
+
+        # Check that structures are valid StructureMetadata
+        assert s.status is not None
+        # Check that features exist (atoms should be present)
+        assert "atoms" in s.features
+        # Ensure ID is unique (basic check)
+        assert s.id is not None
 
 
 def test_scenario_02_active_learning_selection(uat_config: PYACEMAKERConfig) -> None:
