@@ -23,6 +23,7 @@
 
     <h3>Physics Checks</h3>
     <ul>
+        <li>EOS Stability: <span class="{{ 'passed' if result.eos_stable else 'failed' }}">{{ result.eos_stable }}</span></li>
         <li>Phonon Stability: <span class="{{ 'passed' if result.phonon_stable else 'failed' }}">{{ result.phonon_stable }}</span></li>
         <li>Elastic Stability: <span class="{{ 'passed' if result.elastic_stable else 'failed' }}">{{ result.elastic_stable }}</span></li>
     </ul>

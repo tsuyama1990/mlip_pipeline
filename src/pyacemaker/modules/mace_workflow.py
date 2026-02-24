@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING, Any
 from ase.io import write
 from loguru import logger
 
-from pyacemaker.core.base import BaseComponent
 from pyacemaker.core.config import DistillationConfig
-from pyacemaker.core.dataset import DatasetManager
+from pyacemaker.core.interfaces import Oracle
+from pyacemaker.core.logging import get_logger
 from pyacemaker.core.utils import (
     stream_metadata_to_atoms,
     validate_structure_integrity_atoms,
@@ -19,13 +19,13 @@ from pyacemaker.modules.active_learner import ActiveLearner
 from pyacemaker.modules.oracle import MaceSurrogateOracle
 from pyacemaker.modules.structure_generator import StructureGenerator
 from pyacemaker.modules.trainer import PacemakerTrainer
-from pyacemaker.oracle.manager import OracleManager
+from pyacemaker.oracle.dataset import DatasetManager
 
 if TYPE_CHECKING:
     from ase import Atoms
 
 
-class MaceDistillationWorkflow(BaseComponent):
+class MaceDistillationWorkflow:
     """
     Workflow manager for the MACE Distillation process (Cycle 05/06).
     Orchestrates the steps:
@@ -44,14 +44,15 @@ class MaceDistillationWorkflow(BaseComponent):
         dataset_manager: DatasetManager,
         active_learner: ActiveLearner,
         structure_generator: StructureGenerator,
-        oracle: OracleManager,
+        oracle: Oracle,
         mace_oracle: MaceSurrogateOracle,
         pacemaker_trainer: PacemakerTrainer,
         mace_trainer: Any,  # MaceTrainer type
         work_dir: Path,
         batch_size: int = 100,  # Default batch size for labeling if not in config
     ) -> None:
-        super().__init__(config)
+        self.config = config
+        self.logger = get_logger(self.__class__.__name__)
         self.dataset_manager = dataset_manager
         self.active_learner = active_learner
         self.structure_generator = structure_generator

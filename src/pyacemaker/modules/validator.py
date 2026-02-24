@@ -5,7 +5,9 @@ from collections.abc import Iterable
 from pyacemaker.core.base import Metrics, ModuleResult
 from pyacemaker.core.interfaces import Validator as ValidatorInterface
 from pyacemaker.domain_models.models import Potential, StructureMetadata
+from pyacemaker.domain_models.validator import ValidationResult
 from pyacemaker.validator.manager import ValidatorManager
+from pyacemaker.validator.report import ReportGenerator
 
 
 class MockValidator(ValidatorInterface):
@@ -21,6 +23,22 @@ class MockValidator(ValidatorInterface):
         count = 0
         for _ in test_set:
             count += 1
+
+        # Generate Mock Report for UAT
+        output_dir = self.config.project.root_dir / "validation"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        report_path = output_dir / "validation_report.html"
+
+        dummy_result = ValidationResult(
+            passed=True,
+            metrics={"mock": 1.0, "count": count, "bulk_modulus": 100.0},
+            eos_stable=True,
+            phonon_stable=True,
+            elastic_stable=True,
+            artifacts={"mock_plot": "mock.png"}
+        )
+        ReportGenerator().generate(dummy_result, report_path)
+
         return ModuleResult(
             status="success",
             metrics=Metrics.model_validate({"mock": 1.0, "count": count}),

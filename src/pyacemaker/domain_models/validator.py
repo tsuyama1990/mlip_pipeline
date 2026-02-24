@@ -10,6 +10,7 @@ class ValidationResult(BaseModel):
 
     passed: bool = Field(..., description="Whether validation passed")
     metrics: dict[str, float] = Field(..., description="Validation metrics")
+    eos_stable: bool = Field(..., description="Whether EOS stability check passed")
     phonon_stable: bool = Field(..., description="Whether phonon stability check passed")
     elastic_stable: bool = Field(..., description="Whether elastic stability check passed")
     artifacts: dict[str, str] = Field(

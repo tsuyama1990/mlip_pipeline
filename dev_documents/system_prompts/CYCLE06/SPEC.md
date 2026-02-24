@@ -28,8 +28,11 @@ src/pyacemaker/
         -   Fits the Birch-Murnaghan equation of state.
         -   **Criterion**: The bulk modulus should be positive and within physical range (e.g., 10-500 GPa).
     -   **`check_phonons(structure: StructureData, potential: Path) -> ValidationResult`**:
-        -   Uses ASE or Phonopy (if available) to calculate phonon dispersion.
+        -   Uses Phonopy (if available) to calculate phonon dispersion.
         -   **Criterion**: No significant imaginary frequencies (unstable modes) for a known stable ground state.
+    -   **`check_elastic(structure: StructureData, potential: Path) -> ValidationResult`**:
+        -   Calculates elastic constants (C11, C12, C44).
+        -   **Criterion**: Born stability criteria for cubic systems.
 
 ### 3.2. Validation Report (`validator/report.py`)
 -   **`ReportGenerator`**:
