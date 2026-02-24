@@ -1,11 +1,14 @@
 """MACE model configuration."""
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
 import re
 from pathlib import Path
 from typing import Any
-from pyacemaker.core.validation import validate_safe_path, _validate_absolute_path
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 from pyacemaker.core.config import CONSTANTS, get_defaults
+from pyacemaker.core.validation import validate_safe_path
+
 
 class MaceConfig(BaseModel):
     """MACE model configuration."""

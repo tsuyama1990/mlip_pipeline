@@ -10,10 +10,12 @@ from pyacemaker.core.config import DistillationConfig
 from pyacemaker.core.interfaces import Oracle
 from pyacemaker.core.logging import get_logger
 from pyacemaker.core.utils import (
+    atoms_to_metadata,
     stream_metadata_to_atoms,
-    validate_structure_integrity_atoms,
 )
 from pyacemaker.core.validation import validate_safe_path
+from pyacemaker.domain_models.common import PotentialType
+from pyacemaker.domain_models.models import Potential
 from pyacemaker.domain_models.state import PipelineState
 from pyacemaker.modules.active_learner import ActiveLearner
 from pyacemaker.modules.oracle import MaceSurrogateOracle
@@ -119,12 +121,13 @@ class MaceDistillationWorkflow:
 
         try:
             # Active Learner manages the loop: select -> label -> train -> repeat
-            final_model_path = self.active_learner.run_loop(
+            final_model_path, dft_dataset_path = self.active_learner.run_loop(
                 pool_path=pool_path,
                 work_dir=self.work_dir
             )
 
             state.artifacts["mace_model_path"] = str(final_model_path)
+            state.artifacts["dft_dataset_path"] = str(dft_dataset_path)
             state.current_step = 3
             logger.info(f"Active Learning loop completed. Model: {final_model_path}")
 
@@ -172,25 +175,6 @@ class MaceDistillationWorkflow:
         state.artifacts["surrogate_pool_path"] = str(surrogate_pool_path)
         state.current_step = 5
         return state
-
-    def _labeled_stream_gen(self, iterator: Iterator["Atoms"]) -> Iterator["Atoms"]:
-        """Generator that batches structure labeling.
-
-        Consumes input iterator, batches atoms for processing, and yields labeled atoms one by one.
-        """
-        batch: list[Atoms] = []
-        for atoms in iterator:
-            # Validation
-            validate_structure_integrity_atoms(atoms)
-            batch.append(atoms)
-
-            if len(batch) >= self.batch_size:
-                yield from self._process_batch(batch)
-                batch = [] # Clear memory
-
-        # Process remaining
-        if batch:
-            yield from self._process_batch(batch)
 
     def _write_labeled_stream(self, labeled_iterator: Iterator["Atoms"], output_path: Path) -> int:
         """Writes labeled structures to file using a buffer.
@@ -252,36 +236,20 @@ class MaceDistillationWorkflow:
         # 1. Load stream
         input_iter = self.dataset_manager.load_iter(surrogate_pool_path)
 
-        # 2. Convert to Atoms for calculator
-        atoms_iter = stream_metadata_to_atoms(input_iter)
+        # 2. Label stream (Generator-based batching via compute_batch)
+        # compute_batch consumes StructureMetadata and yields StructureMetadata (with energy/forces)
+        labeled_metadata_stream = self.mace_oracle.compute_batch(input_iter)
 
-        # 3. Label stream (Generator-based batching)
-        labeled_gen = self._labeled_stream_gen(atoms_iter)
+        # 3. Convert back to Atoms for writing
+        atoms_iter = stream_metadata_to_atoms(labeled_metadata_stream)
 
         # 4. Save stream using batch write to optimize I/O
-        count = self._write_labeled_stream(labeled_gen, labeled_pool_path)
+        count = self._write_labeled_stream(atoms_iter, labeled_pool_path)
 
         logger.info(f"Labeled {count} surrogate structures in {labeled_pool_path}")
         state.artifacts["labeled_surrogate_path"] = str(labeled_pool_path)
         state.current_step = 6
         return state
-
-    def _process_batch(self, batch: list["Atoms"]) -> Iterator["Atoms"]:
-        """Process a batch of atoms with the MACE calculator."""
-        # MACE Calculator optimization: if using MACECalculator directly, it might support batching
-        # But here we are using self.mace_oracle.calculator, which is an ASE calculator.
-        # We iterate for now, but batching logic is encapsulated here for future optimization.
-
-        for a in batch:
-            a.calc = self.mace_oracle.calculator
-            try:
-                # This triggers calculation
-                a.get_potential_energy()
-                a.get_forces()
-                yield a
-            except Exception as e:
-                logger.warning(f"Failed to label structure: {e}")
-                # Skip bad structures
 
     def step6_pacemaker_base_training(self, state: PipelineState) -> PipelineState:
         """
@@ -308,7 +276,7 @@ class MaceDistillationWorkflow:
         """
         Step 7: Delta Learning (Optional).
         """
-        logger.info("Step 7: Delta Learning check")
+        logger.info("Step 7: Delta Learning")
 
         # Check configuration
         if not self.config.step7_pacemaker_finetune.enable:
@@ -323,20 +291,35 @@ class MaceDistillationWorkflow:
              msg = "Artifact 'pacemaker_potential_path' missing for Delta Learning"
              raise ValueError(msg)
 
-        # Logic for delta learning would involve:
-        # 1. Loading the base potential
-        # 2. Loading the original DFT dataset (from Step 2 or pool)
-        # 3. Retraining with high weight on DFT data
-        # For Cycle 06, we implement the error handling and stub the logic.
+        dft_dataset_str = state.artifacts.get("dft_dataset_path")
+        if not dft_dataset_str:
+             logger.warning("DFT dataset path missing. Cannot perform Delta Learning.")
+             msg = "Artifact 'dft_dataset_path' missing for Delta Learning"
+             raise ValueError(msg)
 
-        logger.info("Delta Learning logic placeholder executed.")
+        base_potential = Potential(
+            path=Path(pacemaker_pot_str),
+            type=PotentialType.PACE,
+            version="0.0.0",  # Placeholder version for internal object
+        )
+        dft_dataset_path = Path(dft_dataset_str)
 
-        # In a real implementation:
-        # final_pot = self.pacemaker_trainer.train_delta(...)
-        # state.artifacts["final_potential"] = str(final_pot)
+        # Load DFT dataset as stream
+        def dft_metadata_stream() -> Iterator[Any]:
+            # dataset_manager.load_iter returns Atoms, convert to Metadata for trainer
+            for atoms in self.dataset_manager.load_iter(dft_dataset_path):
+                yield atoms_to_metadata(atoms)
 
-        # Propagate base potential as final if delta logic is stubbed
-        state.artifacts["final_potential"] = pacemaker_pot_str
+        weight_dft = self.config.step7_pacemaker_finetune.weight_dft
 
-        state.current_step = 8 # Done
+        logger.info(f"Starting Delta Learning with weight_dft={weight_dft}")
+        final_pot = self.pacemaker_trainer.train(
+            dataset=dft_metadata_stream(),
+            initial_potential=base_potential,
+            weight_dft=weight_dft,
+        )
+
+        state.artifacts["final_potential"] = str(final_pot.path)
+        state.current_step = 8
+        logger.info(f"Delta Learning completed. Final potential: {final_pot.path}")
         return state
