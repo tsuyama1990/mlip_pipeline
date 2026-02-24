@@ -9,13 +9,6 @@ import pytest
 from ase import Atoms
 
 from pyacemaker.core.config import PYACEMAKERConfig
-from pyacemaker.core.interfaces import (
-    DynamicsEngine,
-    Oracle,
-    StructureGenerator,
-    Trainer,
-    UncertaintyModel,
-)
 from pyacemaker.domain_models.models import (
     Potential,
     PotentialType,
@@ -64,7 +57,6 @@ def test_mace_workflow_oracle_failure_recovery(mock_config: PYACEMAKERConfig, tm
     dataset_manager = DatasetManager()
     pool_path = tmp_path / "pool.pckl.gzip"
     # Create dummy pool using generator to simulate streaming and avoid memory loading
-    from ase import Atoms
     atoms_iter = (Atoms("H") for _ in range(10))
     dataset_manager.save_iter(atoms_iter, pool_path)
 

@@ -38,7 +38,7 @@ def test_delta_learning_parameter_passing(tmp_path: Path) -> None:
         dynamics_engine=DynamicsEngineConfig(mock=True),
     )
 
-    orchestrator = Orchestrator(config)
+    orchestrator = Orchestrator(config, base_dir=tmp_path)
 
     # Ensure trainer is PacemakerTrainer
     assert isinstance(orchestrator.trainer, PacemakerTrainer)

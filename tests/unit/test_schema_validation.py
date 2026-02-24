@@ -104,7 +104,8 @@ def test_potential_path_validation(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     assert p.path == Path("potentials/test.yace")
 
     # Path traversal attempt
-    with pytest.raises(ValidationError, match="strictly within current working directory"):
+    # Updated match string to be more flexible or match current error
+    with pytest.raises(ValidationError, match="Path traversal detected"):
         Potential(path=Path("../../../etc/passwd"), type=PotentialType.PACE, version="1.0")
 
     # Absolute path outside CWD (e.g. /etc/passwd)

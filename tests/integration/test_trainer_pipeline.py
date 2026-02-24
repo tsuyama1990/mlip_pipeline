@@ -64,7 +64,7 @@ def test_trainer_pipeline_execution(tmp_path: Path) -> None:
     )
 
     # 2. Instantiate Orchestrator
-    orchestrator = Orchestrator(config)
+    orchestrator = Orchestrator(config, base_dir=tmp_path)
 
     # 3. Pre-populate Training Data
     # The Orchestrator's training phase reads from self.dataset_path or splits new data.

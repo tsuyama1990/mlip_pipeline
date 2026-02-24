@@ -1,10 +1,10 @@
 """Integration tests for Orchestrator state management."""
 
-import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.domain_models.state import PipelineState
 from pyacemaker.orchestrator import Orchestrator
@@ -21,6 +21,8 @@ def mock_config(tmp_path):
     config.orchestrator = MagicMock()
     config.orchestrator.dataset_file = "dataset.xyz"
     config.orchestrator.validation_file = "validation.xyz"
+    # Ensure version is valid for Potential reconstruction
+    config.version = "1.0.0"
     return config
 
 
@@ -49,7 +51,6 @@ def test_state_persistence(orchestrator, tmp_path):
     # or we can test private methods if really needed, but integration tests usually
     # test public interfaces.
     # The Orchestrator manages state internally.
-    pass
 
 
 def test_run_resumes_from_state(orchestrator, tmp_path):
@@ -57,15 +58,18 @@ def test_run_resumes_from_state(orchestrator, tmp_path):
     state_file = tmp_path / "pipeline_state.json"
 
     # Create existing state: Skip 1, 2, 3. Resume at 4.
-    # completed_steps should be [1, 2, 3] ideally if we are at 4.
-    # The logic checks: if state.current_step <= X, run step X.
+    # We must create the files referenced in artifacts so validation passes
+    pool_path = tmp_path / "pool.xyz"
+    pool_path.touch()
+    model_path = tmp_path / "model.yace"
+    model_path.touch()
 
     initial_state = PipelineState(
         current_step=4,
         completed_steps=[1, 2, 3],
         artifacts={
-            "pool_path": Path("pool.xyz"),
-            "fine_tuned_potential": Path("model.yace")
+            "pool_path": pool_path,
+            "fine_tuned_potential": model_path
         },
     )
     state_file.write_text(initial_state.model_dump_json())
@@ -76,7 +80,7 @@ def test_run_resumes_from_state(orchestrator, tmp_path):
         workflow_instance = MockWorkflow.return_value
 
         # Setup mocks for steps
-        workflow_instance.step1_direct_sampling.return_value = Path("pool.xyz")
+        workflow_instance.step1_direct_sampling.return_value = pool_path
         workflow_instance.step2_active_learning_loop.return_value = MagicMock()
         workflow_instance.step4_surrogate_data_generation.return_value = Path("surrogate.xyz")
         # Ensure other steps return valid dummy paths to avoid crashes

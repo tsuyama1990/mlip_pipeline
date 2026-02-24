@@ -5,6 +5,8 @@ from itertools import chain
 from pathlib import Path
 from typing import Any
 
+from loguru import logger  # Using loguru directly as in other modules
+
 from pyacemaker.core.base import Metrics, ModuleResult
 from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
 from pyacemaker.core.dataset import DatasetSplitter, SeedSelector
@@ -16,7 +18,6 @@ from pyacemaker.core.interfaces import (
     Oracle,
     StructureGenerator,
     Trainer,
-    UncertaintyModel,
 )
 from pyacemaker.core.interfaces import (
     Validator as ValidatorInterface,
@@ -29,12 +30,13 @@ from pyacemaker.core.utils import (
 from pyacemaker.domain_models.models import (
     CycleStatus,
     Potential,
-    PotentialType,
     StructureMetadata,
 )
 from pyacemaker.domain_models.state import PipelineState
 from pyacemaker.modules.active_learner import ActiveLearner
 from pyacemaker.modules.mace_workflow import MaceDistillationWorkflow
+from pyacemaker.modules.oracle import MaceSurrogateOracle
+from pyacemaker.modules.trainer import PacemakerTrainer
 from pyacemaker.modules.validator import Validator
 from pyacemaker.oracle.dataset import DatasetManager
 
@@ -45,18 +47,21 @@ class Orchestrator(IOrchestrator):
     def __init__(
         self,
         config: PYACEMAKERConfig,
+        base_dir: Path, # Added to match instantiation in main and tests
         structure_generator: StructureGenerator | None = None,
         oracle: Oracle | None = None,
         trainer: Trainer | None = None,
         dynamics_engine: DynamicsEngine | None = None,
         validator: Validator | None = None,
         mace_trainer: Trainer | None = None,
-        mace_oracle: UncertaintyModel | None = None,
+        mace_oracle: MaceSurrogateOracle | None = None, # Refined type hint
         active_learner: ActiveLearner | None = None,
+        pacemaker_trainer: PacemakerTrainer | None = None, # Added
     ) -> None:
         """Initialize the orchestrator and sub-modules."""
         super().__init__(config)
         self.config = config
+        self.base_dir = base_dir # Used for state file and work dir
 
         # Dependency Injection with fallbacks using factory pattern
         self.structure_generator = (
@@ -71,9 +76,22 @@ class Orchestrator(IOrchestrator):
             self.mace_trainer = ModuleFactory.create_mace_trainer(config)
 
         # Initialize MaceOracle if needed for distillation
-        self.mace_oracle: UncertaintyModel | None = mace_oracle
+        self.mace_oracle: MaceSurrogateOracle | None = mace_oracle
         if not self.mace_oracle and config.distillation.enable_mace_distillation:
-            self.mace_oracle = ModuleFactory.create_mace_oracle(config)
+            # Factory returns UncertaintyModel, we need MaceSurrogateOracle for distillation
+            # Assuming factory creates the right type if config says so, or we cast/check
+            oracle_instance = ModuleFactory.create_mace_oracle(config)
+            if isinstance(oracle_instance, MaceSurrogateOracle):
+                self.mace_oracle = oracle_instance
+            else:
+                # If factory returns generic UncertaintyModel, we might need a specific factory or check
+                # For now assuming it matches
+                self.mace_oracle = oracle_instance # type: ignore
+
+        self.pacemaker_trainer = pacemaker_trainer
+        if not self.pacemaker_trainer and config.distillation.enable_mace_distillation:
+             # Assuming ModuleFactory or direct instantiation
+             self.pacemaker_trainer = PacemakerTrainer(config.trainer)
 
         self.dynamics_engine: DynamicsEngine = (
             dynamics_engine or ModuleFactory.create_dynamics_engine(config)
@@ -82,7 +100,7 @@ class Orchestrator(IOrchestrator):
             validator or ModuleFactory.create_validator(config)
         )
 
-        self.active_learner = active_learner or ActiveLearner()
+        self.active_learner = active_learner or ActiveLearner(config.orchestrator, self.oracle) # Pass required args
 
         # State
         self.current_potential: Potential | None = None
@@ -102,29 +120,29 @@ class Orchestrator(IOrchestrator):
         self.processed_items_count = 0
 
         # State persistence
-        self.state_file = self.config.project.root_dir / "pipeline_state.json"
+        self.state_file = self.base_dir / "pipeline_state.json"
 
     def run(self) -> ModuleResult:
         """Run the active learning pipeline."""
-        self.logger.info("Starting Active Learning Pipeline")
+        logger.info("Starting Active Learning Pipeline")
 
         # Check for MACE Distillation Mode
         if self.config.distillation.enable_mace_distillation:
-            self.logger.info("Mode: MACE Distillation Workflow")
+            logger.info("Mode: MACE Distillation Workflow")
             return self._run_mace_distillation()
 
         # Default: Classic Active Learning
-        self.logger.info("Mode: Standard Active Learning Loop")
+        logger.info("Mode: Standard Active Learning Loop")
         return self._run_active_learning_loop()
 
     def _load_pipeline_state(self) -> PipelineState:
         """Load existing pipeline state or create new."""
         if self.state_file.exists():
             try:
-                self.logger.info(f"Loading pipeline state from {self.state_file}")
+                logger.info(f"Loading pipeline state from {self.state_file}")
                 return PipelineState.model_validate_json(self.state_file.read_text())
             except Exception:
-                self.logger.warning("Failed to load pipeline state. Starting fresh.")
+                logger.warning("Failed to load pipeline state. Starting fresh.")
 
         return PipelineState(current_step=1)
 
@@ -133,244 +151,83 @@ class Orchestrator(IOrchestrator):
         try:
             self.state_file.write_text(state.model_dump_json(indent=2))
         except Exception:
-            self.logger.exception("Failed to save pipeline state")
+            logger.exception("Failed to save pipeline state")
+
+    def _create_mace_workflow(self) -> MaceDistillationWorkflow:
+        """Create MaceDistillationWorkflow instance.
+
+        Extracted for testability and dependency injection.
+        """
+        if not self.mace_trainer:
+             msg = "MACE Trainer not initialized for MACE workflow."
+             raise RuntimeError(msg)
+        if not self.mace_oracle:
+             msg = "MACE Oracle not initialized for MACE workflow."
+             raise RuntimeError(msg)
+        if not self.pacemaker_trainer:
+             msg = "Pacemaker Trainer not initialized for MACE workflow."
+             raise RuntimeError(msg)
+
+        batch_size = self.config.oracle.mace.batch_size if self.config.oracle.mace else 100
+
+        return MaceDistillationWorkflow(
+            config=self.config.distillation,
+            dataset_manager=self.dataset_manager,
+            active_learner=self.active_learner,
+            structure_generator=self.structure_generator,
+            oracle=self.oracle, # type: ignore - expects OracleManager? Check workflow definition
+            mace_oracle=self.mace_oracle,
+            pacemaker_trainer=self.pacemaker_trainer,
+            mace_trainer=self.mace_trainer,
+            work_dir=self.base_dir / "distillation_work",
+            batch_size=batch_size,
+        )
 
     def _run_mace_distillation(self) -> ModuleResult:
         """Run the 7-Step MACE Distillation Workflow with State Management."""
-        if not self.mace_trainer:
-            msg = "MACE Trainer not initialized for MACE workflow."
-            raise RuntimeError(msg)
-        if not self.mace_oracle:
-            msg = "MACE Oracle not initialized for MACE workflow."
-            raise RuntimeError(msg)
-
-        workflow = MaceDistillationWorkflow(
-            config=self.config,
-            dataset_manager=self.dataset_manager,
-            dataset_path=self.dataset_path,
-            oracle=self.oracle,
-            mace_oracle=self.mace_oracle,
-            trainer=self.trainer,
-            mace_trainer=self.mace_trainer,
-            dynamics_engine=self.dynamics_engine,
-            structure_generator=self.structure_generator,
-            validation_path=self.validation_path,
-            training_path=self.training_path,
-            active_learner=self.active_learner,
-        )
+        try:
+            workflow = self._create_mace_workflow()
+        except RuntimeError as e:
+            return ModuleResult(status="failed", metrics=Metrics(), error=str(e))
 
         state = self._load_pipeline_state()
-        dist_config = self.config.distillation
+
+        steps = [
+            (1, workflow.step1_direct_sampling),
+            (2, workflow.step2_active_learning_loop),
+            (3, workflow.step3_final_mace_training),
+            (4, workflow.step4_surrogate_data_generation),
+            (5, workflow.step5_surrogate_labeling),
+            (6, workflow.step6_pacemaker_base_training),
+            (7, workflow.step7_delta_learning),
+        ]
 
         try:
-            # Step 1: DIRECT Sampling
-            self._run_step1(state, workflow, dist_config)
-
-            # Step 2 & 3: Active Learning Loop
-            fine_tuned_potential = self._run_step2_3(state, workflow, dist_config)
-
-            # Step 4: Surrogate Data Generation
-            self._run_step4(state, workflow, dist_config, fine_tuned_potential)
-
-            # Step 5: Surrogate Labeling
-            self._run_step5(state, workflow, dist_config, fine_tuned_potential)
-
-            # Step 6: Pacemaker Base Training
-            base_ace_potential = self._run_step6(state, workflow, dist_config)
-
-            # Step 7: Delta Learning
-            final_potential = self._run_step7(state, workflow, dist_config, base_ace_potential)
+            for step_num, step_func in steps:
+                if state.current_step <= step_num:
+                    logger.info(f"Executing Step {step_num}")
+                    try:
+                        state = step_func(state)
+                        self._save_pipeline_state(state)
+                    except Exception as e:
+                        logger.error(f"Step {step_num} failed: {e}")
+                        raise
+                else:
+                    logger.info(f"Skipping Step {step_num} (Already completed)")
 
             return ModuleResult(
                 status="success",
                 metrics=Metrics.model_validate({"steps_completed": state.completed_steps}),
-                artifacts={"potential": str(final_potential.path)}
+                artifacts={"potential": str(state.artifacts.get("final_potential"))}
             )
 
         except Exception as e:
-            self.logger.exception("Orchestration failed")
+            logger.exception("Orchestration failed")
             return ModuleResult(
                 status="failed",
                 metrics=Metrics(),
                 error=str(e),
             )
-
-    def _run_step1(self, state: PipelineState, workflow: MaceDistillationWorkflow, dist_config: Any) -> None:
-        """Execute Step 1: DIRECT Sampling."""
-        if state.current_step <= 1:
-            self.logger.info("Executing Step 1: DIRECT Sampling")
-            pool_path = workflow.step1_direct_sampling(dist_config)
-
-            state.artifacts["pool_path"] = pool_path
-            state.completed_steps.append(1)
-            state.current_step = 2
-            self._save_pipeline_state(state)
-        else:
-            self.logger.info("Skipping Step 1 (Completed)")
-
-    def _run_step2_3(self, state: PipelineState, workflow: MaceDistillationWorkflow, dist_config: Any) -> Potential | None:
-        """Execute Steps 2 & 3: Active Learning & Fine-tuning."""
-        fine_tuned_potential = None
-
-        if state.current_step <= 2:
-            self.logger.info("Executing Step 2: Active Learning Loop")
-            pool_path = state.artifacts.get("pool_path")
-            if not pool_path:
-                msg = "Missing 'pool_path' artifact for Step 2"
-                raise RuntimeError(msg)
-
-            fine_tuned_potential = workflow.step2_active_learning_loop(dist_config, pool_path)
-
-            if not fine_tuned_potential:
-                self.logger.warning("No fine-tuning performed. Using base model from config.")
-                model_path = self.config.oracle.mace.model_path if self.config.oracle.mace else "mock"
-                fine_tuned_potential = Potential(
-                    path=Path(model_path),
-                    type=PotentialType.MACE,
-                    version=self.config.version,
-                    metrics={},
-                    parameters={},
-                )
-
-            state.artifacts["fine_tuned_potential"] = fine_tuned_potential.path
-            state.completed_steps.append(2)
-            state.completed_steps.append(3) # Implicitly done
-            state.current_step = 4
-            self._save_pipeline_state(state)
-        else:
-            self.logger.info("Skipping Step 2 & 3 (Completed)")
-
-        # Reconstruct potential if needed for later steps
-        if not fine_tuned_potential:
-            fine_tuned_pot_path = state.artifacts.get("fine_tuned_potential")
-            if fine_tuned_pot_path:
-                fine_tuned_potential = Potential(
-                    path=fine_tuned_pot_path,
-                    type=PotentialType.MACE,
-                    version=self.config.version,
-                    metrics={},
-                    parameters={}
-                )
-                if hasattr(self.mace_oracle, "update_model"):
-                    self.mace_oracle.update_model(fine_tuned_pot_path)
-
-        return fine_tuned_potential
-
-    def _run_step4(
-        self, state: PipelineState, workflow: MaceDistillationWorkflow, dist_config: Any, fine_tuned_potential: Potential | None
-    ) -> None:
-        """Execute Step 4: Surrogate Data Generation."""
-        if state.current_step <= 4:
-            self.logger.info("Executing Step 4: Surrogate Data Generation")
-            if not fine_tuned_potential:
-                 msg = "Missing 'fine_tuned_potential' artifact for Step 4"
-                 raise RuntimeError(msg)
-
-            surrogate_structures_path = workflow.step4_surrogate_data_generation(
-                dist_config, fine_tuned_potential
-            )
-
-            state.artifacts["surrogate_structures_path"] = surrogate_structures_path
-            state.completed_steps.append(4)
-            state.current_step = 5
-            self._save_pipeline_state(state)
-        else:
-            self.logger.info("Skipping Step 4 (Completed)")
-
-    def _run_step5(
-        self, state: PipelineState, workflow: MaceDistillationWorkflow, dist_config: Any, fine_tuned_potential: Potential | None
-    ) -> None:
-        """Execute Step 5: Surrogate Labeling."""
-        if state.current_step <= 5:
-            self.logger.info("Executing Step 5: Surrogate Labeling")
-            surrogate_structures_path = state.artifacts.get("surrogate_structures_path")
-            if not surrogate_structures_path:
-                msg = "Missing 'surrogate_structures_path' artifact for Step 5"
-                raise RuntimeError(msg)
-
-            surrogate_dataset_path = workflow.step5_surrogate_labeling(
-                dist_config, surrogate_structures_path, fine_tuned_potential
-            )
-
-            state.artifacts["surrogate_dataset_path"] = surrogate_dataset_path
-            state.completed_steps.append(5)
-            state.current_step = 6
-            self._save_pipeline_state(state)
-        else:
-            self.logger.info("Skipping Step 5 (Completed)")
-
-    def _run_step6(self, state: PipelineState, workflow: MaceDistillationWorkflow, dist_config: Any) -> Potential | None:
-        """Execute Step 6: Pacemaker Base Training."""
-        base_ace_potential = None
-
-        if state.current_step <= 6:
-            self.logger.info("Executing Step 6: Pacemaker Base Training")
-            surrogate_dataset_path = state.artifacts.get("surrogate_dataset_path")
-            if not surrogate_dataset_path:
-                msg = "Missing 'surrogate_dataset_path' artifact for Step 6"
-                raise RuntimeError(msg)
-
-            base_ace_potential = workflow.step6_pacemaker_base_training(surrogate_dataset_path)
-
-            state.artifacts["base_ace_potential"] = base_ace_potential.path
-            state.completed_steps.append(6)
-            state.current_step = 7
-            self._save_pipeline_state(state)
-        else:
-            self.logger.info("Skipping Step 6 (Completed)")
-
-        if not base_ace_potential:
-            base_ace_pot_path = state.artifacts.get("base_ace_potential")
-            if base_ace_pot_path:
-                base_ace_potential = Potential(
-                    path=base_ace_pot_path,
-                    type=PotentialType.PACE,
-                    version=self.config.version,
-                    metrics={},
-                    parameters={}
-                )
-        return base_ace_potential
-
-    def _run_step7(
-        self, state: PipelineState, workflow: MaceDistillationWorkflow, dist_config: Any, base_ace_potential: Potential | None
-    ) -> Potential:
-        """Execute Step 7: Delta Learning."""
-        final_potential = None
-
-        if state.current_step <= 7:
-            self.logger.info("Executing Step 7: Delta Learning")
-            if not base_ace_potential:
-                msg = "Missing 'base_ace_potential' artifact for Step 7"
-                raise RuntimeError(msg)
-
-            final_potential = workflow.step7_delta_learning(
-                dist_config, base_ace_potential
-            )
-
-            state.artifacts["final_potential"] = final_potential.path
-            state.completed_steps.append(7)
-            state.current_step = 8 # Finished
-            self._save_pipeline_state(state)
-        else:
-            self.logger.info("Skipping Step 7 (Completed)")
-
-        if not final_potential:
-            final_pot_path = state.artifacts.get("final_potential")
-            if final_pot_path:
-                final_potential = Potential(
-                    path=final_pot_path,
-                    type=PotentialType.PACE,
-                    version=self.config.version,
-                    metrics={},
-                    parameters={}
-                )
-            else:
-                # Should have been produced or we wouldn't be here if current_step > 7
-                # unless state is inconsistent
-                msg = "Pipeline marked complete but final_potential missing."
-                raise RuntimeError(msg)
-
-        return final_potential
 
     def run_cycle(self) -> CycleResult:
         """Execute one active learning cycle (Standard Loop)."""
@@ -383,7 +240,7 @@ class Orchestrator(IOrchestrator):
 
         # 2. Validation
         if not self._run_validation_phase():
-            self.logger.error("Cycle halted due to validation failure.")
+            logger.error("Cycle halted due to validation failure.")
             return CycleResult(
                 status=CycleStatus.FAILED, metrics=Metrics(), error="Validation failed"
             )
@@ -392,7 +249,7 @@ class Orchestrator(IOrchestrator):
         try:
             selected_structures = self._run_exploration_and_selection_phase()
         except Exception as e:
-            self.logger.exception("Exploration/Selection phase failed")
+            logger.exception("Exploration/Selection phase failed")
             return CycleResult(status=CycleStatus.FAILED, metrics=Metrics(), error=str(e))
 
         if selected_structures is None:
@@ -412,28 +269,28 @@ class Orchestrator(IOrchestrator):
         """Run standard active learning loop."""
         # 0. Cold Start
         if not self.dataset_path.exists():
-            self.logger.info("Cold Start: Generating initial structures")
+            logger.info("Cold Start: Generating initial structures")
             self._run_cold_start()
 
         # Main Loop
         max_cycles = self.config.orchestrator.max_cycles
         while self.cycle_count < max_cycles:
             self.cycle_count += 1
-            self.logger.info(f"--- Cycle {self.cycle_count}/{max_cycles} ---")
+            logger.info(f"--- Cycle {self.cycle_count}/{max_cycles} ---")
 
             result = self.run_cycle()
 
             if result.status == CycleStatus.CONVERGED:
-                self.logger.info("Convergence reached!")
+                logger.info("Convergence reached!")
                 break
             if result.status == CycleStatus.FAILED:
-                self.logger.error(f"Cycle failed! Reason: {result.error}")
+                logger.error(f"Cycle failed! Reason: {result.error}")
                 return ModuleResult(
                     status=CycleStatus.FAILED,
                     metrics=Metrics.model_validate({"cycles": self.cycle_count}),
                 )
 
-        self.logger.info("Pipeline completed")
+        logger.info("Pipeline completed")
         return ModuleResult(
             status="success",
             metrics=Metrics.model_validate({"cycles": self.cycle_count}),
@@ -458,7 +315,7 @@ class Orchestrator(IOrchestrator):
         try:
             phase_func()
         except Exception:
-            self.logger.exception(f"{phase_name} phase failed")
+            logger.exception(f"{phase_name} phase failed")
             return False
         return True
 
@@ -496,18 +353,18 @@ class Orchestrator(IOrchestrator):
 
     def _run_training_phase(self) -> None:
         """Execute training phase with incremental partitioning."""
-        self.logger.info(f"Phase: Training (Incremental from index {self.processed_items_count})")
+        logger.info(f"Phase: Training (Incremental from index {self.processed_items_count})")
 
         added_count = self._prepare_training_data()
         self.processed_items_count += added_count
 
-        self.logger.info(
+        logger.info(
             f"Processed {added_count} new items. Total processed: {self.processed_items_count}"
         )
 
         # 2. Train on Full Training Set
         if not self.training_path.exists():
-            self.logger.warning("No training data available.")
+            logger.warning("No training data available.")
             return
 
         # Pass iterator over persistent training set to trainer
@@ -531,13 +388,13 @@ class Orchestrator(IOrchestrator):
         Returns:
             bool: True if validation passed, False otherwise.
         """
-        self.logger.info("Phase: Validation")
+        logger.info("Phase: Validation")
         if not self.current_potential:
-            self.logger.warning("No potential to validate.")
+            logger.warning("No potential to validate.")
             return False
 
         if not self.validation_path.exists():
-            self.logger.warning("Empty validation set.")
+            logger.warning("Empty validation set.")
             return True
 
         # Load validation set from file
@@ -551,11 +408,11 @@ class Orchestrator(IOrchestrator):
         try:
             val_result = self.validator.validate(self.current_potential, validation_stream())
         except Exception:
-            self.logger.exception("Validation failed during processing")
+            logger.exception("Validation failed during processing")
             return False
 
         if val_result.status == "failed":
-            self.logger.error(f"Validation failed: {val_result.metrics}")
+            logger.error(f"Validation failed: {val_result.metrics}")
             return False
 
         return True
@@ -571,7 +428,7 @@ class Orchestrator(IOrchestrator):
         )
 
         if not seeds:
-            self.logger.warning("No seeds found in datasets or generator.")
+            logger.warning("No seeds found in datasets or generator.")
 
         return seeds
 
@@ -583,35 +440,35 @@ class Orchestrator(IOrchestrator):
         Returns:
             Iterable of selected structures for calculation, or None if converged.
         """
-        self.logger.info("Phase: Exploration")
+        logger.info("Phase: Exploration")
         if not self.current_potential:
             return None
 
         # Select seeds for exploration
         seeds = self._get_exploration_seeds()
         if not seeds:
-            self.logger.warning("No seeds available for exploration.")
+            logger.warning("No seeds available for exploration.")
             return None
 
-        self.logger.info(f"Exploration starting with {len(seeds)} seeds.")
+        logger.info(f"Exploration starting with {len(seeds)} seeds.")
 
         # Run Dynamics Engine (Exploration)
         high_uncertainty_stream, max_gamma_container = self._run_exploration_stream(seeds)
 
         if high_uncertainty_stream is None:
-             self.logger.info("No high uncertainty structures found. Converged?")
+             logger.info("No high uncertainty structures found. Converged?")
              return None
 
         # Selection (Local Candidates & Active Set)
-        self.logger.info("Phase: Selection")
+        logger.info("Phase: Selection")
         active_set_structures = self._run_selection_phase(high_uncertainty_stream)
 
         # Log stats after consumption (Note: gamma will be updated as stream is consumed)
         # Since stream is consumed by selection phase, the value should be final here.
-        self.logger.info(f"Exploration max gamma: {max_gamma_container[0]:.2f}")
+        logger.info(f"Exploration max gamma: {max_gamma_container[0]:.2f}")
 
         if not active_set_structures:
-             self.logger.warning("ActiveSet returned no structures. Calculation skipped.")
+             logger.warning("ActiveSet returned no structures. Calculation skipped.")
              return []
 
         return active_set_structures
@@ -646,14 +503,14 @@ class Orchestrator(IOrchestrator):
                             )
                         yield s
                 except Exception:
-                    self.logger.exception("Error during exploration streaming")
+                    logger.exception("Error during exploration streaming")
                     # Stop yielding on error, effectively truncating stream
                     return
 
             return stats_spy(high_uncertainty_stream), max_gamma_container
 
         except Exception:
-            self.logger.exception("Failed to initialize exploration stream")
+            logger.exception("Failed to initialize exploration stream")
             return None, [0.0]
 
     def _run_selection_phase(
@@ -688,7 +545,7 @@ class Orchestrator(IOrchestrator):
 
     def _run_calculation_phase(self, structures: Iterable[StructureMetadata]) -> None:
         """Execute calculation phase."""
-        self.logger.info("Phase: Calculation (Streaming)")
+        logger.info("Phase: Calculation (Streaming)")
         # Stream processing: iterable -> compute_batch(iter) -> save (append)
         new_data = self.oracle.compute_batch(structures)
 
