@@ -199,6 +199,33 @@ class Constants(BaseSettings):
     pacemaker_default_embeddings: dict[str, Any] = Field(
         default_factory=lambda: get_defaults()["pacemaker_default_embeddings"]
     )
+    pacemaker_default_kappa: float = Field(
+        default=0.3, description="Default kappa for Pacemaker loss"
+    )
+    pacemaker_default_seed: int = Field(
+        default=42, description="Default random seed for Pacemaker"
+    )
+    pacemaker_default_delta_spline_bins: float = Field(
+        default=0.001, description="Default delta spline bins for Pacemaker"
+    )
+    pacemaker_default_evaluator: str = Field(
+        default="tensorpot", description="Default evaluator for Pacemaker"
+    )
+    pacemaker_default_display_step: int = Field(
+        default=100, description="Default display step for Pacemaker"
+    )
+    pacemaker_default_patience: int = Field(
+        default=50, description="Default patience for Pacemaker"
+    )
+    pacemaker_default_w_energy: float = Field(
+        default=1.0, description="Default energy weight"
+    )
+    pacemaker_default_w_forces: float = Field(
+        default=1.0, description="Default forces weight"
+    )
+    pacemaker_default_w_stress: float = Field(
+        default=0.1, description="Default stress weight"
+    )
 
     # DFT Defaults
     default_dft_ecutwfc: float = Field(
@@ -889,20 +916,13 @@ class Step1DirectSamplingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     target_points: int = Field(
         default_factory=lambda: get_defaults()["step1_target_points"],
+        ge=1,
         description="Number of target points",
     )
     objective: str = Field(
         default_factory=lambda: get_defaults()["step1_objective"],
         description="Optimization objective",
     )
-
-    @field_validator("target_points")
-    @classmethod
-    def validate_target_points(cls, v: int) -> int:
-        if v <= 0:
-            msg = "target_points must be positive"
-            raise ValueError(msg)
-        return v
 
 
 class Step2ActiveLearningConfig(BaseModel):
@@ -911,6 +931,7 @@ class Step2ActiveLearningConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     uncertainty_threshold: float = Field(
         default_factory=lambda: get_defaults()["step2_uncertainty_threshold"],
+        ge=0.0,
         description="Uncertainty threshold",
     )
     dft_calculator: str = Field(
@@ -919,20 +940,14 @@ class Step2ActiveLearningConfig(BaseModel):
     )
     cycles: int = Field(
         default_factory=lambda: get_defaults()["step2_cycles"],
+        ge=1,
         description="Number of active learning cycles",
     )
     n_select: int = Field(
         default_factory=lambda: get_defaults()["step2_n_select"],
+        ge=1,
         description="Number of structures to select per cycle",
     )
-
-    @field_validator("cycles")
-    @classmethod
-    def validate_cycles(cls, v: int) -> int:
-        if v <= 0:
-            msg = "cycles must be positive"
-            raise ValueError(msg)
-        return v
 
 
 class Step3MaceFinetuneConfig(BaseModel):
@@ -944,7 +959,9 @@ class Step3MaceFinetuneConfig(BaseModel):
         description="Base MACE model",
     )
     epochs: int = Field(
-        default_factory=lambda: get_defaults()["step3_epochs"], description="Number of epochs"
+        default_factory=lambda: get_defaults()["step3_epochs"],
+        ge=1,
+        description="Number of epochs"
     )
 
 
@@ -954,19 +971,12 @@ class Step4SurrogateSamplingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     target_points: int = Field(
         default_factory=lambda: get_defaults()["step4_target_points"],
+        ge=1,
         description="Number of target points",
     )
     method: str = Field(
         default_factory=lambda: get_defaults()["step4_method"], description="Sampling method"
     )
-
-    @field_validator("target_points")
-    @classmethod
-    def validate_target_points(cls, v: int) -> int:
-        if v <= 0:
-            msg = "target_points must be positive"
-            raise ValueError(msg)
-        return v
 
 
 class Step7PacemakerFinetuneConfig(BaseModel):
@@ -979,6 +989,7 @@ class Step7PacemakerFinetuneConfig(BaseModel):
     )
     weight_dft: float = Field(
         default_factory=lambda: get_defaults()["step7_weight_dft"],
+        ge=0.0,
         description="Weight for DFT data",
     )
 

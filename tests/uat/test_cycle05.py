@@ -145,14 +145,18 @@ def test_scenario_02_pipeline_idempotency(uat_config, tmp_path):
             validator=MagicMock(),
             mace_trainer=MagicMock(),
             mace_oracle=MagicMock(),
+            active_learner=MagicMock(),
         )
 
     # 1. Simulate interruption at Step 3
     state_file = tmp_path / "pipeline_state.json"
     state = PipelineState(
-        current_step=3,
-        completed_steps=[1, 2],
-        artifacts={"pool_path": Path("pool.xyz")},
+        current_step=4, # Ready for Step 4
+        completed_steps=[1, 2, 3],
+        artifacts={
+            "pool_path": Path("pool.xyz"),
+            "fine_tuned_potential": Path("model.yace")
+        },
     )
     state_file.write_text(state.model_dump_json())
 
@@ -164,43 +168,23 @@ def test_scenario_02_pipeline_idempotency(uat_config, tmp_path):
         workflow.step1_direct_sampling.return_value = Path("pool.xyz")
         workflow.step2_active_learning_loop.return_value = MagicMock()
         workflow.step4_surrogate_data_generation.return_value = Path("surrogate.xyz")
-        # ... others
-
-        # We need to mock that step 3 is executed.
-        # Step mapping in Orchestrator:
-        # Step 1: Direct
-        # Step 2: Active Learning (Steps 2 & 3 in concept, but one method step2_active_learning_loop?)
-        # If State says current_step=3, and step 2 is "Active Learning Loop",
-        # checking the mapping I'm about to implement is crucial.
-        # Let's assume 1:1 mapping with workflow methods for simplicity or logic handling.
-        # If workflow has `step2_active_learning_loop`, it might cover both.
-        # Let's say:
-        # Step 1 -> step1_direct_sampling
-        # Step 2 -> step2_active_learning_loop
-        # Step 3 -> ? (Maybe AL loop has multiple iterations, but Orchestrator treats it as one block?)
-        # SPEC says: "Sequentially executes run_step1 through run_step7".
-        # If MaceWorkflow implements them as distinct steps, fine.
-        # If `step2_active_learning_loop` is Steps 2 & 3, then Orchestrator might skip Step 3 if Step 2 is done?
-        # Or Orchestrator mapping:
-        # 1: step1
-        # 2: step2 (AL)
-        # 3: step3 (Fine-tuning? Included in AL?)
-        # 4: step4 (Surrogate Gen)
-
-        # Let's assume for this test that we map Step 3 to "Active Learning Finish" or start of Step 4.
-        # If state says current_step=3, we resume from 3.
-        # If Step 2 and 3 are combined, and we finished 2, maybe we are done with AL?
-        # If completed_steps=[1, 2], and current_step=3.
-
-        # For the purpose of this UAT, I'll verifying skipping.
+        workflow.step5_surrogate_labeling.return_value = Path("surr_ds.xyz")
+        workflow.step6_pacemaker_base_training.return_value = MagicMock(path=Path("base.yace"))
+        workflow.step7_delta_learning.return_value = MagicMock(path=Path("final.yace"))
 
         orchestrator.run()
 
-        # Verify Step 1 skipped
+        # Verify Step 1-3 skipped
         workflow.step1_direct_sampling.assert_not_called()
+        workflow.step2_active_learning_loop.assert_not_called()
 
-        # Verify execution from current step
-        # If current_step=3 is mapped to AL loop continuation or next step
-        # This depends on implementation details.
-        # But crucially, Step 1 must be skipped.
-        pass
+        # Verify Step 4+ executed
+        workflow.step4_surrogate_data_generation.assert_called_once()
+        workflow.step5_surrogate_labeling.assert_called_once()
+        workflow.step6_pacemaker_base_training.assert_called_once()
+        workflow.step7_delta_learning.assert_called_once()
+
+        # Verify state was updated to finished
+        final_state = PipelineState.model_validate_json(state_file.read_text())
+        assert final_state.current_step == 8
+        assert 7 in final_state.completed_steps

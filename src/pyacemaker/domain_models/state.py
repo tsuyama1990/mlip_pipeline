@@ -15,7 +15,7 @@ class PipelineState(BaseModel):
         ...,
         description="The current step number being executed (1-7).",
         ge=1,
-        le=7,
+        le=8, # Allow 8 for "Finished" state
     )
     completed_steps: list[int] = Field(
         default_factory=list,

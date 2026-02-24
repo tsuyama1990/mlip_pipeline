@@ -4,12 +4,12 @@ import time
 from collections.abc import Iterator
 from itertools import islice
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
 from pyacemaker.core.base import Metrics, ModuleResult
-from pyacemaker.core.config import PYACEMAKERConfig
+from pyacemaker.core.config import PYACEMAKERConfig, DistillationConfig
 from pyacemaker.core.dataset import SeedSelector
 from pyacemaker.core.interfaces import (
     DynamicsEngine,
@@ -30,7 +30,8 @@ from pyacemaker.domain_models.models import (
     StructureMetadata,
     StructureStatus,
 )
-from pyacemaker.modules.active_learner import ActiveLearner
+if TYPE_CHECKING:
+    from pyacemaker.modules.active_learner import ActiveLearner
 from pyacemaker.oracle.dataset import DatasetManager
 
 
@@ -50,7 +51,7 @@ class MaceDistillationWorkflow:
         structure_generator: StructureGenerator,
         validation_path: Path,
         training_path: Path,
-        active_learner: ActiveLearner,
+        active_learner: "ActiveLearner",
     ) -> None:
         """Initialize the workflow."""
         self.config = config
@@ -86,7 +87,7 @@ class MaceDistillationWorkflow:
                 fine_tuned_potential = Potential(
                     path=Path(model_path),
                     type=PotentialType.MACE,
-                    version="1.0",
+                    version=self.config.version,
                     metrics={},
                     parameters={},
                 )
@@ -124,7 +125,7 @@ class MaceDistillationWorkflow:
                 error=str(e),
             )
 
-    def step1_direct_sampling(self, dist_config: Any) -> Path:
+    def step1_direct_sampling(self, dist_config: DistillationConfig) -> Path:
         """Step 1: DIRECT Sampling (Entropy Maximization)."""
         self.logger.info("Step 1: DIRECT Sampling")
         try:
@@ -154,10 +155,11 @@ class MaceDistillationWorkflow:
             return pool_path
 
     def step2_active_learning_loop(
-        self, dist_config: Any, pool_path: Path
+        self, dist_config: DistillationConfig, pool_path: Path
     ) -> Potential | None:
         """Step 2 & 3: MACE Uncertainty-based Active Learning & Fine-tuning."""
         self.logger.info("Step 2: MACE Active Learning Loop")
+        validate_safe_path(pool_path)
 
         calculated_ids: set[Any] = set()
         current_potential: Potential | None = None
@@ -188,21 +190,28 @@ class MaceDistillationWorkflow:
 
     def _select_candidates(
         self,
-        dist_config: Any,
+        dist_config: DistillationConfig,
         pool_path: Path,
         calculated_ids: set[Any]
     ) -> list[StructureMetadata] | None:
-        """Select candidates using uncertainty sampling."""
-        pool_iter = (
-            atoms_to_metadata(a) for a in self.dataset_manager.load_iter(pool_path)
-        )
+        """Select candidates using uncertainty sampling.
+
+        Uses streaming to process pool structure by structure.
+        """
+        validate_safe_path(pool_path)
+
+        # Streaming generator for pool loading
+        def pool_stream() -> Iterator[StructureMetadata]:
+            for atoms in self.dataset_manager.load_iter(pool_path):
+                yield atoms_to_metadata(atoms)
+
         unknown_pool = (
             s
-            for s in pool_iter
+            for s in pool_stream()
             if s.status != StructureStatus.CALCULATED and s.id not in calculated_ids
         )
 
-        # Use MACE Oracle for uncertainty
+        # Use MACE Oracle for uncertainty (streaming)
         scored_pool = self.mace_oracle.compute_uncertainty(unknown_pool)
 
         n_select = dist_config.step2_active_learning.n_select
@@ -212,7 +221,7 @@ class MaceDistillationWorkflow:
 
     def _execute_active_learning_iteration(
         self,
-        dist_config: Any,
+        dist_config: DistillationConfig,
         pool_path: Path,
         calculated_ids: set[Any],
         current_potential: Potential | None
@@ -234,6 +243,7 @@ class MaceDistillationWorkflow:
         self.logger.info(f"Computing DFT for {len(selected)} structures")
         computed_iter = self.oracle.compute_batch(selected)
 
+        validate_safe_path(self.dataset_path)
         save_metadata_stream(
             self.dataset_manager,
             computed_iter,
@@ -254,12 +264,13 @@ class MaceDistillationWorkflow:
         return self.mace_trainer.train(train_stream(), initial_potential=current_potential)
 
     def step4_surrogate_data_generation(
-        self, dist_config: Any, fine_tuned_potential: Potential
+        self, dist_config: DistillationConfig, fine_tuned_potential: Potential
     ) -> Path:
         """Step 4: Surrogate Data Generation."""
         self.logger.info("Step 4: Surrogate Data Generation")
         try:
             seeds = self._get_exploration_seeds(n_seeds=5)
+            # Ensure dynamics_engine returns iterator
             surrogate_iter = self.dynamics_engine.run_exploration(fine_tuned_potential, seeds)
 
             surrogate_file = dist_config.surrogate_file
@@ -272,9 +283,13 @@ class MaceDistillationWorkflow:
 
             # Ensure we validate surrogate structures too before saving
             def validating_iter() -> Iterator[StructureMetadata]:
+                count = 0
                 for s in limited_iter:
                     validate_structure_integrity(s)
                     yield s
+                    count += 1
+                    if count % 100 == 0:
+                        self.logger.info(f"Generated {count} surrogate structures")
 
             save_metadata_stream(
                 self.dataset_manager,
@@ -291,10 +306,11 @@ class MaceDistillationWorkflow:
             return surrogate_dataset_path
 
     def step5_surrogate_labeling(
-        self, dist_config: Any, surrogate_path: Path, fine_tuned_potential: Potential | None = None
+        self, dist_config: DistillationConfig, surrogate_path: Path, fine_tuned_potential: Potential | None = None
     ) -> Path:
         """Step 5: Surrogate Labeling."""
         self.logger.info("Step 5: Surrogate Labeling")
+        validate_safe_path(surrogate_path)
         try:
             # Update mace_oracle model first if provided!
             if fine_tuned_potential and hasattr(self.mace_oracle, "update_model"):
@@ -335,6 +351,7 @@ class MaceDistillationWorkflow:
     ) -> Potential:
         """Step 6: Pacemaker Base Training."""
         self.logger.info("Step 6: Pacemaker Base Training")
+        validate_safe_path(surrogate_dataset_path)
         try:
             def surrogate_train_stream() -> Iterator[StructureMetadata]:
                 yield from (
@@ -348,10 +365,11 @@ class MaceDistillationWorkflow:
             raise
 
     def step7_delta_learning(
-        self, dist_config: Any, base_potential: Potential
+        self, dist_config: DistillationConfig, base_potential: Potential
     ) -> Potential:
         """Step 7: Delta Learning (Fine-tuning with DFT)."""
         self.logger.info("Step 7: Delta Learning (Fine-tuning with DFT)")
+        validate_safe_path(self.dataset_path)
         try:
             if dist_config.step7_pacemaker_finetune.enable:
                 def dft_train_stream() -> Iterator[StructureMetadata]:

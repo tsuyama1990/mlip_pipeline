@@ -52,6 +52,7 @@ class Orchestrator(IOrchestrator):
         validator: Validator | None = None,
         mace_trainer: Trainer | None = None,
         mace_oracle: UncertaintyModel | None = None,
+        active_learner: ActiveLearner | None = None,
     ) -> None:
         """Initialize the orchestrator and sub-modules."""
         super().__init__(config)
@@ -80,6 +81,8 @@ class Orchestrator(IOrchestrator):
         self.validator: ValidatorInterface = (
             validator or ModuleFactory.create_validator(config)
         )
+
+        self.active_learner = active_learner or ActiveLearner()
 
         # State
         self.current_potential: Potential | None = None
@@ -132,7 +135,7 @@ class Orchestrator(IOrchestrator):
         except Exception:
             self.logger.exception("Failed to save pipeline state")
 
-    def _run_mace_distillation(self) -> ModuleResult: # noqa: C901, PLR0912, PLR0915
+    def _run_mace_distillation(self) -> ModuleResult:
         """Run the 7-Step MACE Distillation Workflow with State Management."""
         if not self.mace_trainer:
             msg = "MACE Trainer not initialized for MACE workflow."
@@ -140,9 +143,6 @@ class Orchestrator(IOrchestrator):
         if not self.mace_oracle:
             msg = "MACE Oracle not initialized for MACE workflow."
             raise RuntimeError(msg)
-
-        # Inject ActiveLearner
-        active_learner = ActiveLearner()
 
         workflow = MaceDistillationWorkflow(
             config=self.config,
@@ -156,183 +156,221 @@ class Orchestrator(IOrchestrator):
             structure_generator=self.structure_generator,
             validation_path=self.validation_path,
             training_path=self.training_path,
-            active_learner=active_learner,
+            active_learner=self.active_learner,
         )
 
         state = self._load_pipeline_state()
         dist_config = self.config.distillation
 
         try:
-            # --- Step 1: DIRECT Sampling ---
-            if state.current_step <= 1:
-                self.logger.info("Executing Step 1: DIRECT Sampling")
-                pool_path = workflow.step1_direct_sampling(dist_config)
+            # Step 1: DIRECT Sampling
+            self._run_step1(state, workflow, dist_config)
 
-                state.artifacts["pool_path"] = pool_path
-                state.completed_steps.append(1)
-                state.current_step = 2
-                self._save_pipeline_state(state)
-            else:
-                self.logger.info("Skipping Step 1 (Completed)")
+            # Step 2 & 3: Active Learning Loop
+            fine_tuned_potential = self._run_step2_3(state, workflow, dist_config)
 
-            # --- Step 2 & 3: Active Learning Loop ---
-            if state.current_step <= 2:
-                self.logger.info("Executing Step 2: Active Learning Loop")
-                # Retrieve input artifact
-                pool_path = state.artifacts.get("pool_path")
-                if not pool_path:
-                    msg = "Missing 'pool_path' artifact for Step 2"
-                    raise RuntimeError(msg)
+            # Step 4: Surrogate Data Generation
+            self._run_step4(state, workflow, dist_config, fine_tuned_potential)
 
-                fine_tuned_potential = workflow.step2_active_learning_loop(dist_config, pool_path)
+            # Step 5: Surrogate Labeling
+            self._run_step5(state, workflow, dist_config, fine_tuned_potential)
 
-                # If None, fallback as per workflow logic
-                if not fine_tuned_potential:
-                    self.logger.warning("No fine-tuning performed. Using base model from config.")
-                    model_path = self.config.oracle.mace.model_path if self.config.oracle.mace else "mock"
-                    fine_tuned_potential = Potential(
-                        path=Path(model_path),
-                        type=PotentialType.MACE,
-                        version="1.0",
-                        metrics={},
-                        parameters={},
-                    )
+            # Step 6: Pacemaker Base Training
+            base_ace_potential = self._run_step6(state, workflow, dist_config)
 
-                state.artifacts["fine_tuned_potential"] = fine_tuned_potential.path
-                state.completed_steps.append(2)
-                state.completed_steps.append(3) # Implicitly done
-                state.current_step = 4
-                self._save_pipeline_state(state)
-            else:
-                self.logger.info("Skipping Step 2 & 3 (Completed)")
-
-            # Reconstruct potential object if resuming later
-            fine_tuned_pot_path = state.artifacts.get("fine_tuned_potential")
-            fine_tuned_potential = None
-            if fine_tuned_pot_path:
-                # Minimal reconstruction for passing to steps
-                fine_tuned_potential = Potential(
-                    path=fine_tuned_pot_path,
-                    type=PotentialType.MACE,
-                    version="1.0",
-                    metrics={},
-                    parameters={}
-                )
-                # Ensure oracle has the potential if we skipped training
-                if hasattr(self.mace_oracle, "update_model"):
-                    self.mace_oracle.update_model(fine_tuned_pot_path)
-
-            # --- Step 4: Surrogate Data Generation ---
-            if state.current_step <= 4:
-                self.logger.info("Executing Step 4: Surrogate Data Generation")
-                if not fine_tuned_potential:
-                     msg = "Missing 'fine_tuned_potential' artifact for Step 4"
-                     raise RuntimeError(msg)
-
-                surrogate_structures_path = workflow.step4_surrogate_data_generation(
-                    dist_config, fine_tuned_potential
-                )
-
-                state.artifacts["surrogate_structures_path"] = surrogate_structures_path
-                state.completed_steps.append(4)
-                state.current_step = 5
-                self._save_pipeline_state(state)
-            else:
-                self.logger.info("Skipping Step 4 (Completed)")
-
-            # --- Step 5: Surrogate Labeling ---
-            if state.current_step <= 5:
-                self.logger.info("Executing Step 5: Surrogate Labeling")
-                surrogate_structures_path = state.artifacts.get("surrogate_structures_path")
-                if not surrogate_structures_path:
-                    msg = "Missing 'surrogate_structures_path' artifact for Step 5"
-                    raise RuntimeError(msg)
-
-                surrogate_dataset_path = workflow.step5_surrogate_labeling(
-                    dist_config, surrogate_structures_path, fine_tuned_potential
-                )
-
-                state.artifacts["surrogate_dataset_path"] = surrogate_dataset_path
-                state.completed_steps.append(5)
-                state.current_step = 6
-                self._save_pipeline_state(state)
-            else:
-                self.logger.info("Skipping Step 5 (Completed)")
-
-            # --- Step 6: Pacemaker Base Training ---
-            if state.current_step <= 6:
-                self.logger.info("Executing Step 6: Pacemaker Base Training")
-                surrogate_dataset_path = state.artifacts.get("surrogate_dataset_path")
-                if not surrogate_dataset_path:
-                    msg = "Missing 'surrogate_dataset_path' artifact for Step 6"
-                    raise RuntimeError(msg)
-
-                base_ace_potential = workflow.step6_pacemaker_base_training(surrogate_dataset_path)
-
-                state.artifacts["base_ace_potential"] = base_ace_potential.path
-                state.completed_steps.append(6)
-                state.current_step = 7
-                self._save_pipeline_state(state)
-            else:
-                self.logger.info("Skipping Step 6 (Completed)")
-
-            # Reconstruct base ACE potential
-            base_ace_pot_path = state.artifacts.get("base_ace_potential")
-            base_ace_potential = None
-            if base_ace_pot_path:
-                base_ace_potential = Potential(
-                    path=base_ace_pot_path,
-                    type=PotentialType.PACE,
-                    version="1.0",
-                    metrics={},
-                    parameters={}
-                )
-
-            # --- Step 7: Delta Learning ---
-            if state.current_step <= 7:
-                self.logger.info("Executing Step 7: Delta Learning")
-                if not base_ace_potential:
-                    msg = "Missing 'base_ace_potential' artifact for Step 7"
-                    raise RuntimeError(msg)
-
-                final_potential = workflow.step7_delta_learning(
-                    dist_config, base_ace_potential
-                )
-
-                state.artifacts["final_potential"] = final_potential.path
-                state.completed_steps.append(7)
-                state.current_step = 8 # Finished
-                self._save_pipeline_state(state)
-            else:
-                self.logger.info("Skipping Step 7 (Completed)")
-                # If completed, load final result from artifacts
-                final_pot_path = state.artifacts.get("final_potential")
-                if final_pot_path:
-                    final_potential = Potential(
-                        path=final_pot_path,
-                        type=PotentialType.PACE,
-                        version="1.0",
-                        metrics={},
-                        parameters={}
-                    )
-                else:
-                    self.logger.warning("Pipeline marked complete but final_potential missing.")
-                    return ModuleResult(status="failed", metrics=Metrics(), error="Missing final artifact")
+            # Step 7: Delta Learning
+            final_potential = self._run_step7(state, workflow, dist_config, base_ace_potential)
 
             return ModuleResult(
                 status="success",
                 metrics=Metrics.model_validate({"steps_completed": state.completed_steps}),
-                artifacts={"potential": str(state.artifacts.get("final_potential", ""))}
+                artifacts={"potential": str(final_potential.path)}
             )
 
         except Exception as e:
             self.logger.exception("Orchestration failed")
-            # State is saved after each successful step, so we are good.
             return ModuleResult(
                 status="failed",
                 metrics=Metrics(),
                 error=str(e),
             )
+
+    def _run_step1(self, state: PipelineState, workflow: MaceDistillationWorkflow, dist_config: Any) -> None:
+        """Execute Step 1: DIRECT Sampling."""
+        if state.current_step <= 1:
+            self.logger.info("Executing Step 1: DIRECT Sampling")
+            pool_path = workflow.step1_direct_sampling(dist_config)
+
+            state.artifacts["pool_path"] = pool_path
+            state.completed_steps.append(1)
+            state.current_step = 2
+            self._save_pipeline_state(state)
+        else:
+            self.logger.info("Skipping Step 1 (Completed)")
+
+    def _run_step2_3(self, state: PipelineState, workflow: MaceDistillationWorkflow, dist_config: Any) -> Potential | None:
+        """Execute Steps 2 & 3: Active Learning & Fine-tuning."""
+        fine_tuned_potential = None
+
+        if state.current_step <= 2:
+            self.logger.info("Executing Step 2: Active Learning Loop")
+            pool_path = state.artifacts.get("pool_path")
+            if not pool_path:
+                msg = "Missing 'pool_path' artifact for Step 2"
+                raise RuntimeError(msg)
+
+            fine_tuned_potential = workflow.step2_active_learning_loop(dist_config, pool_path)
+
+            if not fine_tuned_potential:
+                self.logger.warning("No fine-tuning performed. Using base model from config.")
+                model_path = self.config.oracle.mace.model_path if self.config.oracle.mace else "mock"
+                fine_tuned_potential = Potential(
+                    path=Path(model_path),
+                    type=PotentialType.MACE,
+                    version=self.config.version,
+                    metrics={},
+                    parameters={},
+                )
+
+            state.artifacts["fine_tuned_potential"] = fine_tuned_potential.path
+            state.completed_steps.append(2)
+            state.completed_steps.append(3) # Implicitly done
+            state.current_step = 4
+            self._save_pipeline_state(state)
+        else:
+            self.logger.info("Skipping Step 2 & 3 (Completed)")
+
+        # Reconstruct potential if needed for later steps
+        if not fine_tuned_potential:
+            fine_tuned_pot_path = state.artifacts.get("fine_tuned_potential")
+            if fine_tuned_pot_path:
+                fine_tuned_potential = Potential(
+                    path=fine_tuned_pot_path,
+                    type=PotentialType.MACE,
+                    version=self.config.version,
+                    metrics={},
+                    parameters={}
+                )
+                if hasattr(self.mace_oracle, "update_model"):
+                    self.mace_oracle.update_model(fine_tuned_pot_path)
+
+        return fine_tuned_potential
+
+    def _run_step4(
+        self, state: PipelineState, workflow: MaceDistillationWorkflow, dist_config: Any, fine_tuned_potential: Potential | None
+    ) -> None:
+        """Execute Step 4: Surrogate Data Generation."""
+        if state.current_step <= 4:
+            self.logger.info("Executing Step 4: Surrogate Data Generation")
+            if not fine_tuned_potential:
+                 msg = "Missing 'fine_tuned_potential' artifact for Step 4"
+                 raise RuntimeError(msg)
+
+            surrogate_structures_path = workflow.step4_surrogate_data_generation(
+                dist_config, fine_tuned_potential
+            )
+
+            state.artifacts["surrogate_structures_path"] = surrogate_structures_path
+            state.completed_steps.append(4)
+            state.current_step = 5
+            self._save_pipeline_state(state)
+        else:
+            self.logger.info("Skipping Step 4 (Completed)")
+
+    def _run_step5(
+        self, state: PipelineState, workflow: MaceDistillationWorkflow, dist_config: Any, fine_tuned_potential: Potential | None
+    ) -> None:
+        """Execute Step 5: Surrogate Labeling."""
+        if state.current_step <= 5:
+            self.logger.info("Executing Step 5: Surrogate Labeling")
+            surrogate_structures_path = state.artifacts.get("surrogate_structures_path")
+            if not surrogate_structures_path:
+                msg = "Missing 'surrogate_structures_path' artifact for Step 5"
+                raise RuntimeError(msg)
+
+            surrogate_dataset_path = workflow.step5_surrogate_labeling(
+                dist_config, surrogate_structures_path, fine_tuned_potential
+            )
+
+            state.artifacts["surrogate_dataset_path"] = surrogate_dataset_path
+            state.completed_steps.append(5)
+            state.current_step = 6
+            self._save_pipeline_state(state)
+        else:
+            self.logger.info("Skipping Step 5 (Completed)")
+
+    def _run_step6(self, state: PipelineState, workflow: MaceDistillationWorkflow, dist_config: Any) -> Potential | None:
+        """Execute Step 6: Pacemaker Base Training."""
+        base_ace_potential = None
+
+        if state.current_step <= 6:
+            self.logger.info("Executing Step 6: Pacemaker Base Training")
+            surrogate_dataset_path = state.artifacts.get("surrogate_dataset_path")
+            if not surrogate_dataset_path:
+                msg = "Missing 'surrogate_dataset_path' artifact for Step 6"
+                raise RuntimeError(msg)
+
+            base_ace_potential = workflow.step6_pacemaker_base_training(surrogate_dataset_path)
+
+            state.artifacts["base_ace_potential"] = base_ace_potential.path
+            state.completed_steps.append(6)
+            state.current_step = 7
+            self._save_pipeline_state(state)
+        else:
+            self.logger.info("Skipping Step 6 (Completed)")
+
+        if not base_ace_potential:
+            base_ace_pot_path = state.artifacts.get("base_ace_potential")
+            if base_ace_pot_path:
+                base_ace_potential = Potential(
+                    path=base_ace_pot_path,
+                    type=PotentialType.PACE,
+                    version=self.config.version,
+                    metrics={},
+                    parameters={}
+                )
+        return base_ace_potential
+
+    def _run_step7(
+        self, state: PipelineState, workflow: MaceDistillationWorkflow, dist_config: Any, base_ace_potential: Potential | None
+    ) -> Potential:
+        """Execute Step 7: Delta Learning."""
+        final_potential = None
+
+        if state.current_step <= 7:
+            self.logger.info("Executing Step 7: Delta Learning")
+            if not base_ace_potential:
+                msg = "Missing 'base_ace_potential' artifact for Step 7"
+                raise RuntimeError(msg)
+
+            final_potential = workflow.step7_delta_learning(
+                dist_config, base_ace_potential
+            )
+
+            state.artifacts["final_potential"] = final_potential.path
+            state.completed_steps.append(7)
+            state.current_step = 8 # Finished
+            self._save_pipeline_state(state)
+        else:
+            self.logger.info("Skipping Step 7 (Completed)")
+
+        if not final_potential:
+            final_pot_path = state.artifacts.get("final_potential")
+            if final_pot_path:
+                final_potential = Potential(
+                    path=final_pot_path,
+                    type=PotentialType.PACE,
+                    version=self.config.version,
+                    metrics={},
+                    parameters={}
+                )
+            else:
+                # Should have been produced or we wouldn't be here if current_step > 7
+                # unless state is inconsistent
+                msg = "Pipeline marked complete but final_potential missing."
+                raise RuntimeError(msg)
+
+        return final_potential
 
     def run_cycle(self) -> CycleResult:
         """Execute one active learning cycle (Standard Loop)."""
@@ -400,23 +438,6 @@ class Orchestrator(IOrchestrator):
             status="success",
             metrics=Metrics.model_validate({"cycles": self.cycle_count}),
         )
-
-    # ... rest of methods unchanged ...
-    # Wait, I need to include the rest of the methods or I will truncate the file!
-    # I should use `read_file` to get the rest and append it, or assume I need to rewrite the whole file.
-    # The previous `read_file` output was truncated? No, it seemed complete.
-    # But `_run_mace_distillation` was in the middle.
-    # I replaced `_run_mace_distillation` with a large block.
-    # I should verify if I have all methods.
-    # `_run_cold_start`, `_execute_phase`, etc. are AFTER `_run_mace_distillation` in original file.
-    # In my new content, I kept `_run_cold_start` and others.
-    # Wait, in my `write_file` above, I stopped after `_run_active_learning_loop`.
-    # I missed the rest of the methods!
-    # `_run_cold_start`, `_execute_phase`, `_prepare_training_data`, `_run_training_phase`, `_run_validation_phase`, `_get_exploration_seeds`, `_run_exploration_and_selection_phase`, `_run_exploration_stream`, `_run_selection_phase`, `_run_calculation_phase`.
-
-    # I must include ALL methods.
-
-    # I will read the file again to copy the rest of the methods.
 
     def _run_cold_start(self) -> None:
         """Execute cold start to generate initial dataset."""
