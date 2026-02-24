@@ -56,9 +56,15 @@ def generator_md(mo):
         """
         ## 1. Define Structure Generator
 
-        We define a custom `SN2StructureGenerator` that interpolates structures along the reaction coordinate.
-        This simulates the "Exploration" phase of the active learning loop.
-        It generates a sequence of structures from reactant to product, providing a diverse initial pool for the distillation process.
+        We define a custom `SN2StructureGenerator` that interpolates structures along the reaction coordinate ($CH_3Cl + OH^- \\to CH_3OH + Cl^-$).
+
+        **Why?**
+        Standard random generation might miss the transition state (TS) region. By forcing the generator to explore the reaction path, we provide the Active Learning loop with high-value candidates.
+
+        **How?**
+        - `_generate_path`: Creates frames by moving $OH^-$ towards $C$ and $Cl^-$ away.
+        - `generate_direct_samples`: Returns these path structures as the initial pool (Step 1).
+        - `generate_local_candidates`: Perturbs these structures to explore the neighborhood (Step 2+).
         """
     )
 
@@ -211,14 +217,14 @@ def workflow_md(mo):
         """
         ## 2. Configure & Run Workflow
 
-        The `run_uat_workflow` function initializes the `Orchestrator` with our custom generator and runs the full pipeline.
-        It handles cleaning up the output directory and creating necessary mock files if needed.
+        The `run_uat_workflow` function handles the end-to-end execution.
 
-        We configure the `Orchestrator` to use:
-        - **MACE Distillation**: Enabled.
-        - **Direct Sampling**: Uses our custom SN2 generator via `random` strategy (which delegates to generator).
-        - **Oracle**: Mock or Real MACE.
-        - **Trainer**: Mock or Real Pacemaker.
+        **Key Logic:**
+        1.  **Directory Setup**: Creates a safe `uat_sn2_reaction` directory.
+        2.  **Configuration**: Generates `config.yaml` enabling MACE Distillation.
+        3.  **Mocking**: If `IS_MOCK` is true, creates dummy pseudopotentials (`.upf`) to bypass DFT checks.
+        4.  **Orchestration**: Instantiates `Orchestrator` with the `SN2StructureGenerator` and runs it.
+        5.  **Cleanup**: Ensures dummy files are removed after execution.
         """
     )
 
@@ -236,9 +242,9 @@ def define_workflow(IS_MOCK, SN2StructureGenerator):
         output_dir = Path("uat_sn2_reaction").absolute()
 
         # Safety Check: Ensure we are not deleting something important
-        # We only delete if it looks like our output dir
         if output_dir.exists():
-            if "uat_sn2_reaction" in output_dir.name:
+            # Strict safety check: must match expected name and parent must be CWD
+            if output_dir.name == "uat_sn2_reaction" and output_dir.parent == Path.cwd():
                 shutil.rmtree(output_dir)
             else:
                 raise RuntimeError(f"Safety check failed: Refusing to delete {output_dir}")
@@ -296,32 +302,37 @@ def define_workflow(IS_MOCK, SN2StructureGenerator):
         except Exception as e:
              return ModuleResult(status="failed", error=f"Config load failed: {e}"), output_dir
 
-        # Create dummy pseudopotentials for validation if missing (Mock requirement)
         dummy_files = []
-        if IS_MOCK:
-            for el in ["C", "H", "O", "Cl"]:
-                p = output_dir / f"{el}.upf"
-                p.touch()
-                dummy_files.append(p)
-                config.oracle.dft.pseudopotentials[el] = str(p)
+        try:
+            # Create dummy pseudopotentials for validation if missing (Mock requirement)
+            if IS_MOCK:
+                for el in ["C", "H", "O", "Cl"]:
+                    p = output_dir / f"{el}.upf"
+                    if not p.exists():
+                        p.touch()
+                        dummy_files.append(p)
+                    config.oracle.dft.pseudopotentials[el] = str(p)
 
-        # Instantiate Generator
-        generator = SN2StructureGenerator(config)
+            # Instantiate Generator
+            generator = SN2StructureGenerator(config)
 
-        # Instantiate Orchestrator
-        orchestrator = Orchestrator(
-            config, base_dir=output_dir, structure_generator=generator
-        )
+            # Instantiate Orchestrator
+            orchestrator = Orchestrator(
+                config, base_dir=output_dir, structure_generator=generator
+            )
 
-        # Run
-        result = orchestrator.run()
+            # Run
+            result = orchestrator.run()
+            return result, output_dir
 
-        # Cleanup dummy files
-        for p in dummy_files:
-            if p.exists():
-                p.unlink()
+        except Exception as e:
+            return ModuleResult(status="failed", error=f"Workflow execution failed: {e}"), output_dir
 
-        return result, output_dir
+        finally:
+            # Cleanup dummy files
+            for p in dummy_files:
+                if p.exists():
+                    p.unlink()
 
     return run_uat_workflow
 
