@@ -14,16 +14,17 @@ Ideally suited for materials scientists who need DFT-level accuracy with the spe
 
 ## Key Features
 
--   **MACE Knowledge Distillation (New)**: Fine-tune MACE foundation models on small DFT datasets and use them to generate massive surrogate datasets for student training.
--   **Surrogate Generation (New)**: High-throughput MD sampling using `ASEDynamicsEngine` driven by fine-tuned MACE models.
--   **Surrogate Labeling (New)**: Efficient batch processing of thousands of structures using the fine-tuned MACE model to generate pseudo-labels (energy, forces).
--   **Pacemaker Base Training (New)**: Automated training of ACE (Atomic Cluster Expansion) potentials using the `Pacemaker` library on surrogate datasets.
--   **Intelligent Exploration**: DIRECT sampling (MaxMin diversity) for initial structure generation to maximize coverage.
--   **Active Learning**: Uncertainty-based selection of structures using MACE ensemble variance or heuristics.
+-   **MACE Knowledge Distillation**: Fine-tune MACE foundation models on small DFT datasets and use them to generate massive surrogate datasets for student training.
+-   **Delta Learning (New)**: Correction of "Sim-to-Real" gap by fine-tuning the student potential on high-fidelity DFT data (Step 7).
+-   **Resumable Orchestration (New)**: Robust state management allows the pipeline to recover from crashes and resume execution from the last completed step.
+-   **Full 7-Step Pipeline**: Automated end-to-end workflow from Direct Sampling to Final Potential generation.
+-   **Surrogate Generation**: High-throughput MD sampling using `ASEDynamicsEngine` driven by fine-tuned MACE models.
+-   **Surrogate Labeling**: Efficient batch processing of thousands of structures using the fine-tuned MACE model to generate pseudo-labels.
+-   **Pacemaker Training**: Automated training of ACE potentials using the `Pacemaker` library.
+-   **Intelligent Exploration**: DIRECT sampling (MaxMin diversity) for initial structure generation.
+-   **Active Learning**: Uncertainty-based selection of structures using MACE ensemble variance.
 -   **Configurable Pipeline**: Robust YAML-based configuration with schema validation (Pydantic).
--   **Mock Mode**: Fully functional mock execution for CI/CD and testing without expensive hardware.
--   **Modular Architecture**: Extensible design separating Oracle, Trainer, and Generator components.
--   **Automated Validation**: Built-in integrity checks for structures and datasets.
+-   **Mock Mode**: Fully functional mock execution for CI/CD and testing.
 
 ## Architecture Overview
 
@@ -41,7 +42,7 @@ graph TD
         DFT -->|Truth Labels| DB[(DFT Dataset)]
     end
 
-    subgraph "Phase 2: Distillation (Cycle 03)"
+    subgraph "Phase 2: Distillation"
         Orch -->|Step 3: Fine-tune| MACE_T[MACE Trainer]
         DB --> MACE_T
         MACE_T -->|Fine-tuned Model| MACE_MD[MACE Dynamics]
@@ -49,7 +50,7 @@ graph TD
         MACE_MD -->|Structures| S_Unlabeled[(Surrogate Candidates)]
     end
 
-    subgraph "Phase 3: ACE Training (Cycle 04)"
+    subgraph "Phase 3: ACE Training"
         S_Unlabeled --> Label[MACE Surrogate Labeler]
         MACE_T -->|Predict Batch| Label
         Label -->|Pseudo Labels| S_DB[(Surrogate Dataset)]
@@ -58,10 +59,10 @@ graph TD
         S_DB --> PACE_T
         PACE_T -->|Base Potential| PACE_Model
 
-        Orch -->|Step 7: Delta Learning| Delta[Delta Learner]
-        DB -->|Real Labels| Delta
-        PACE_Model --> Delta
-        Delta -->|Final Potential| Final_ACE[(Final ACE.yace)]
+        Orch -->|Step 7: Delta Learning| PACE_T_Delta[Pacemaker Delta Trainer]
+        DB -->|Real Labels| PACE_T_Delta
+        PACE_Model --> PACE_T_Delta
+        PACE_T_Delta -->|Final Potential| Final_ACE[(Final ACE.yace)]
     end
 ```
 
@@ -124,16 +125,17 @@ graph TD
 
 3.  **Monitor Progress**:
     The system will log its progress. Check the `data/` directory for artifacts like `dataset.pckl.gzip` and `fine_tuned_mace.model`.
+    State is persisted in `pipeline_state.json` allowing resumption after interruption.
 
 ### Quick Validation
 
 To verify the installation and see the system in action (Mock Mode), run the UAT script:
 
 ```bash
-uv run pytest tests/uat/test_cycle04.py
+uv run pytest tests/uat/test_cycle05.py
 ```
 
-This ensures that the configuration loading, MACE integration (mock), Pacemaker training (mock), and orchestrator workflow are functioning correctly.
+This ensures that the full 7-step pipeline, including Delta Learning and State Orchestration, is functioning correctly.
 
 ## Configuration Reference
 
@@ -175,6 +177,9 @@ distillation:
   step4_surrogate_sampling:
     target_points: 1000
     method: "mace_md"
+  step7_pacemaker_finetune:
+    enable: true
+    weight_dft: 10.0
 
 trainer:
   potential_type: "pace"
@@ -227,13 +232,14 @@ pyacemaker/
 ├── src/
 │   └── pyacemaker/         # Source code
 │       ├── core/           # Base classes & Config
+│       ├── domain_models/  # Pydantic data models & state
 │       ├── oracle/         # MACE & DFT interfaces
-│       ├── modules/        # Module implementations (Oracle, Trainer, etc.)
+│       ├── modules/        # Module implementations
 │       ├── trainer/        # Pacemaker & MACE training
 │       ├── generator/      # Structure generation
 │       ├── dynamics/       # KMC & MD logic
 │       ├── main.py         # CLI Entry Point
-│       └── orchestrator.py # Main logic
+│       └── orchestrator.py # Main logic (State Machine)
 ├── tests/                  # Unit and Integration tests
 ├── tutorials/              # Executable tutorials
 ├── pyproject.toml          # Project configuration

@@ -1,0 +1,91 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0, mock-3.15.1
+collected 14 items
+
+tests/integration/test_orchestrator_state.py ...                         [ 21%]
+tests/uat/test_cycle05.py ..                                             [ 35%]
+tests/unit/test_domain_state.py ......                                   [ 78%]
+tests/unit/test_mace_workflow.py ...                                     [100%]
+
+=============================== warnings summary ===============================
+tests/integration/test_orchestrator_state.py::test_run_resumes_from_state
+  /app/.venv/lib/python3.12/site-packages/pydantic/main.py:528: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `<class 'pathlib.Path'>` but got `<class 'unittest.mock.MagicMock'>` with value `'<MagicMock name='MaceDistillationWorkflow().step5_surrogate_labeling()' id='139694512810096'>'` - serialized value may not be as expected.)
+    return self.__pydantic_serializer__.to_json(
+
+tests/integration/test_orchestrator_state.py::test_run_resumes_from_state
+  /app/.venv/lib/python3.12/site-packages/pydantic/main.py:528: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `<class 'pathlib.Path'>` but got `<class 'unittest.mock.MagicMock'>` with value `'<MagicMock name='MaceDistillationWorkflow().step5_surrogate_labeling()' id='139694512810096'>'` - serialized value may not be as expected.)
+    PydanticSerializationUnexpectedValue(Expected `<class 'pathlib.Path'>` but got `<class 'unittest.mock.MagicMock'>` with value `'<MagicMock name='MaceDistillationWorkflow().step6_pacemaker_base_training().path' id='139694511880192'>'` - serialized value may not be as expected.)
+    return self.__pydantic_serializer__.to_json(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                            Stmts   Miss  Cover   Missing
+-----------------------------------------------------------------------------
+src/pyacemaker/__init__.py                          5      2    60%   5-6
+src/pyacemaker/core/__init__.py                     0      0   100%
+src/pyacemaker/core/base.py                        18      0   100%
+src/pyacemaker/core/config.py                     444     84    81%   31-32, 36-37, 43-44, 389-390, 397-398, 405-406, 409-411, 431, 450-452, 489-514, 519-521, 527-530, 536-539, 600-602, 605, 608-609, 616, 697-701, 838, 879-883, 903-904, 933-934, 967-968, 1023-1026, 1113-1116, 1134-1138, 1180-1181
+src/pyacemaker/core/config_loader.py               82     82     0%   6-134
+src/pyacemaker/core/dataset.py                     71     47    34%   36, 40-41, 51, 57-63, 80-93, 97-128, 132-138
+src/pyacemaker/core/exceptions.py                  11      2    82%   21-22
+src/pyacemaker/core/factory.py                     43     17    60%   40-42, 47-50, 56, 61, 66, 71-75, 80-82
+src/pyacemaker/core/interfaces.py                  44      0   100%
+src/pyacemaker/core/io_utils.py                    10     10     0%   3-26
+src/pyacemaker/core/logging.py                     10      3    70%   21-23
+src/pyacemaker/core/utils.py                      188    107    43%   45-48, 64-65, 73-76, 92-93, 96-97, 100-101, 105-106, 111-112, 119-121, 124-125, 143-157, 176-186, 200-202, 219-220, 233, 255-256, 273-278, 282, 284-287, 309-310, 319-338, 345-347, 374-416, 445-446
+src/pyacemaker/core/validation.py                  75     61    19%   10-28, 36-37, 41-44, 49-64, 69-70, 75-93, 97-113, 117-119
+src/pyacemaker/domain_models/__init__.py            3      0   100%
+src/pyacemaker/domain_models/common.py             37      0   100%
+src/pyacemaker/domain_models/metrics.py            19     19     0%   4-41
+src/pyacemaker/domain_models/models.py              6      0   100%
+src/pyacemaker/domain_models/potential.py          44      9    80%   35-36, 42-43, 52-53, 61-63
+src/pyacemaker/domain_models/state.py               9      0   100%
+src/pyacemaker/domain_models/structure.py         178     65    63%   33, 35-36, 41-42, 48-51, 56-68, 83-86, 91-94, 99-102, 169-172, 180-181, 185-186, 205, 208-209, 213-214, 224-225, 229-230, 233-234, 252-257, 263-264, 273-293, 299-309
+src/pyacemaker/domain_models/task.py               62     23    63%   32-35, 43, 48-59, 77-87
+src/pyacemaker/domain_models/validator.py           8      0   100%
+src/pyacemaker/dynamics/__init__.py                 0      0   100%
+src/pyacemaker/dynamics/kmc.py                     52     40    23%   20-21, 25-29, 33-160
+src/pyacemaker/generator/__init__.py                0      0   100%
+src/pyacemaker/generator/direct.py                105    105     0%   3-196
+src/pyacemaker/generator/mutations.py              26     20    23%   20-37, 50-52, 65-79
+src/pyacemaker/generator/policy.py                 23     10    57%   35, 41-62
+src/pyacemaker/generator/strategies.py             59     42    29%   34-35, 39-44, 52, 56-70, 78, 84-111
+src/pyacemaker/main.py                             40     40     0%   3-83
+src/pyacemaker/modules/__init__.py                  6      0   100%
+src/pyacemaker/modules/active_learner.py           15     10    33%   32-53
+src/pyacemaker/modules/dynamics_engine.py         220    170    23%   46-49, 54-63, 69-81, 89-92, 96-103, 109-155, 164-170, 191-251, 264-266, 270-271, 277-301, 305-306, 314-315, 319-320, 326-329, 333-334, 342-343, 347-348, 354-359, 365-424, 428-429
+src/pyacemaker/modules/mace_workflow.py           171     30    82%   119-121, 150-152, 182-183, 224-225, 229-231, 249, 287-289, 307-308, 327-329, 340, 346-348, 358, 371-374
+src/pyacemaker/modules/oracle.py                  121     93    23%   36-42, 46-53, 57-93, 105-130, 138-139, 143-144, 153-164, 168-210
+src/pyacemaker/modules/structure_generator.py      88     63    28%   19, 23-24, 31-32, 38-39, 48, 54-64, 73-85, 91, 99-100, 104-105, 112-135, 143-145, 154-183, 196-203, 207
+src/pyacemaker/modules/trainer.py                   8      2    75%   10-11
+src/pyacemaker/modules/validator.py                50     39    22%   16, 21-24, 36-39, 44-103
+src/pyacemaker/oracle/__init__.py                   4      0   100%
+src/pyacemaker/oracle/base_oracle.py               48     32    33%   29-30, 34-37, 41-51, 59-67, 86-98
+src/pyacemaker/oracle/calculator.py                38     32    16%   13-18, 39-124
+src/pyacemaker/oracle/dataset.py                  205     92    55%   33-34, 37-38, 41, 44, 47, 57, 67, 86-87, 105, 110, 120-132, 156-159, 162-168, 171-187, 197-199, 204-209, 215-236, 266-267, 273-278, 297-300, 309-312, 326-331, 359-360, 370-373, 389-394, 403-404, 408-411, 417-418
+src/pyacemaker/oracle/mace_manager.py             208    176    15%   22, 33-38, 42-43, 47-86, 91-95, 99-132, 139-178, 185-235, 239-258, 262-271, 275-285, 289-323, 327-329, 333-338
+src/pyacemaker/oracle/mace_oracle.py              146    119    18%   32-42, 46-47, 51-56, 60-86, 92-100, 106-122, 126-132, 136-137, 146-154, 158-169, 175-188, 192-211, 217-229
+src/pyacemaker/oracle/manager.py                   70     57    19%   19-22, 26-30, 41-53, 72-131, 144-151
+src/pyacemaker/orchestrator.py                    310    183    41%   70, 75, 114-115, 123-124, 132-133, 138-139, 141-142, 184-185, 190-205, 241, 248-249, 260, 267-268, 277, 292-322, 341-371, 376-399, 423-427, 437-442, 452-474, 478-505, 513-540, 544-555, 565-596, 602-636, 642-666, 670-674
+src/pyacemaker/trainer/__init__.py                  0      0   100%
+src/pyacemaker/trainer/active_set.py               16     10    38%   25-42
+src/pyacemaker/trainer/base.py                      9      0   100%
+src/pyacemaker/trainer/mace_trainer.py             60     42    30%   28-34, 38-39, 47, 65-125, 141-142
+src/pyacemaker/trainer/pacemaker.py               109     43    61%   39-40, 103, 146-147, 159-162, 177-181, 196-242
+src/pyacemaker/trainer/wrapper.py                  88     77    12%   16-25, 35-60, 81-110, 128-163, 178-199
+src/pyacemaker/validator/__init__.py                0      0   100%
+src/pyacemaker/validator/manager.py                93     80    14%   21-22, 26-82, 88-176
+src/pyacemaker/validator/physics.py                87     74    15%   16, 32-83, 97-128, 135-177, 188-197
+src/pyacemaker/validator/report.py                 13      7    46%   15-18, 22-26
+-----------------------------------------------------------------------------
+TOTAL                                            3855   2219    42%
+======================== 14 passed, 2 warnings in 5.33s ========================
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

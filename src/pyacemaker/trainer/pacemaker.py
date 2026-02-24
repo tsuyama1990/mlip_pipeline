@@ -102,6 +102,11 @@ class PacemakerTrainer(BaseTrainer):
             # Checking pacemaker docs (simulated): usually 'potential.baseline'
             input_data["potential"]["baseline"] = config["baseline"]
 
+        # If initial_potential is provided, we can document it in the YAML for reproducibility,
+        # even though wrapper passes it via CLI.
+        if initial_potential:
+             input_data["metadata"] = {"initial_potential": str(initial_potential)}
+
         input_path = work_dir / "input.yaml"
         with input_path.open("w") as f:
             yaml.dump(input_data, f)

@@ -134,6 +134,7 @@ def test_mace_distillation_workflow_success(base_config: PYACEMAKERConfig) -> No
         structure_generator=mock_sg,
         validation_path=Path("val"),
         training_path=Path("train"),
+        active_learner=MagicMock(),
     )
 
     result = workflow.run()
@@ -186,6 +187,7 @@ def test_mace_workflow_oracle_failure(base_config: PYACEMAKERConfig) -> None:
         structure_generator=mock_sg,
         validation_path=Path("val"),
         training_path=Path("train"),
+        active_learner=MagicMock(),
     )
 
     result = workflow.run()
@@ -208,7 +210,8 @@ def test_mace_workflow_recovery_after_failure(base_config: PYACEMAKERConfig) -> 
     # Fail first call, succeed second call
     def side_effect(structures):
         if mock_mace_oracle.compute_uncertainty.call_count == 1:
-            raise RuntimeError("Temporary Failure")
+            err_msg = "Temporary Failure"
+            raise RuntimeError(err_msg)
         yield from (create_dummy_structure(uncertainty=0.9) for _ in structures)
 
     mock_mace_oracle.compute_uncertainty.side_effect = side_effect
@@ -230,6 +233,7 @@ def test_mace_workflow_recovery_after_failure(base_config: PYACEMAKERConfig) -> 
         structure_generator=mock_sg,
         validation_path=Path("val"),
         training_path=Path("train"),
+        active_learner=MagicMock(),
     )
 
     result = workflow.run()

@@ -56,7 +56,8 @@ def test_mace_workflow_oracle_failure_recovery(mock_config: PYACEMAKERConfig, tm
     def uncertainty_side_effect(structures):
         # We need to yield metadata, but fail on first call
         if mock_mace_oracle.compute_uncertainty.call_count == 1:
-            raise RuntimeError("Transient Failure")
+            err_msg = "Transient Failure"
+            raise RuntimeError(err_msg)
         # Return dummy structures
         for s in structures:
             s.uncertainty_state = UncertaintyState(gamma_max=0.9, gamma_mean=0.9)
@@ -86,10 +87,11 @@ def test_mace_workflow_oracle_failure_recovery(mock_config: PYACEMAKERConfig, tm
         structure_generator=mock_sg,
         validation_path=tmp_path / "val",
         training_path=tmp_path / "train",
+        active_learner=MagicMock(),
     )
 
     # Patch Step 1 to return our pool path
-    with patch.object(workflow, "_step1_direct_sampling", return_value=pool_path):
+    with patch.object(workflow, "step1_direct_sampling", return_value=pool_path):
         result = workflow.run()
 
     # Should succeed overall (despite AL failure)

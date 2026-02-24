@@ -74,10 +74,10 @@ class MaceDistillationWorkflow:
             dist_config = self.config.distillation
 
             # Step 1: DIRECT Sampling
-            pool_path = self._step1_direct_sampling(dist_config)
+            pool_path = self.step1_direct_sampling(dist_config)
 
             # Step 2 & 3: Active Learning & Fine-tuning
-            fine_tuned_potential = self._step2_active_learning_loop(dist_config, pool_path)
+            fine_tuned_potential = self.step2_active_learning_loop(dist_config, pool_path)
 
             if not fine_tuned_potential:
                 # Fallback to configured model if no fine-tuning happened
@@ -92,7 +92,23 @@ class MaceDistillationWorkflow:
                 )
 
             # Execute the surrogate pipeline (Steps 4-7)
-            final_potential = self._run_surrogate_pipeline(dist_config, fine_tuned_potential)
+            # We break this down for Orchestrator usage, but for run() we execute sequentially
+
+            # Step 4: Surrogate Data Generation
+            surrogate_structures_path = self.step4_surrogate_data_generation(
+                dist_config, fine_tuned_potential
+            )
+
+            # Step 5: Surrogate Labeling
+            surrogate_dataset_path = self.step5_surrogate_labeling(
+                dist_config, surrogate_structures_path, fine_tuned_potential
+            )
+
+            # Step 6: Pacemaker Base Training
+            base_ace_potential = self.step6_pacemaker_base_training(surrogate_dataset_path)
+
+            # Step 7: Delta Learning
+            final_potential = self.step7_delta_learning(dist_config, base_ace_potential)
 
             elapsed = time.time() - start_time
             return ModuleResult(
@@ -108,31 +124,7 @@ class MaceDistillationWorkflow:
                 error=str(e),
             )
 
-    def _run_surrogate_pipeline(self, dist_config: Any, fine_tuned_potential: Potential) -> Potential:
-        """Run the Surrogate Data Generation, Labeling, and Training pipeline (Steps 4-7)."""
-        try:
-            # Step 4: Surrogate Data Generation
-            surrogate_structures_path = self._step4_surrogate_data_generation(
-                dist_config, fine_tuned_potential
-            )
-
-            # Step 5: Surrogate Labeling
-            # Update mace_oracle model first!
-            if hasattr(self.mace_oracle, "update_model"):
-                self.mace_oracle.update_model(fine_tuned_potential.path)
-
-            surrogate_dataset_path = self._step5_surrogate_labeling(surrogate_structures_path)
-
-            # Step 6: Pacemaker Base Training
-            base_ace_potential = self._step6_pacemaker_base_training(surrogate_dataset_path)
-
-            # Step 7: Delta Learning
-            return self._step7_delta_learning(dist_config, base_ace_potential)
-        except Exception:
-            self.logger.exception("Surrogate pipeline failed")
-            raise
-
-    def _step1_direct_sampling(self, dist_config: Any) -> Path:
+    def step1_direct_sampling(self, dist_config: Any) -> Path:
         """Step 1: DIRECT Sampling (Entropy Maximization)."""
         self.logger.info("Step 1: DIRECT Sampling")
         try:
@@ -155,12 +147,13 @@ class MaceDistillationWorkflow:
                 calculate_checksum=False,
             )
             self.logger.info(f"Generated pool at {pool_path}")
-            return pool_path
         except Exception:
             self.logger.exception("Step 1 (Direct Sampling) failed")
             raise
+        else:
+            return pool_path
 
-    def _step2_active_learning_loop(
+    def step2_active_learning_loop(
         self, dist_config: Any, pool_path: Path
     ) -> Potential | None:
         """Step 2 & 3: MACE Uncertainty-based Active Learning & Fine-tuning."""
@@ -260,7 +253,7 @@ class MaceDistillationWorkflow:
 
         return self.mace_trainer.train(train_stream(), initial_potential=current_potential)
 
-    def _step4_surrogate_data_generation(
+    def step4_surrogate_data_generation(
         self, dist_config: Any, fine_tuned_potential: Potential
     ) -> Path:
         """Step 4: Surrogate Data Generation."""
@@ -291,25 +284,28 @@ class MaceDistillationWorkflow:
                 calculate_checksum=False,
             )
             self.logger.info(f"Generated surrogate dataset at {surrogate_dataset_path}")
-            return surrogate_dataset_path
         except Exception:
             self.logger.exception("Step 4 (Surrogate Generation) failed")
             raise
+        else:
+            return surrogate_dataset_path
 
-    def _step5_surrogate_labeling(
-        self, surrogate_path: Path
+    def step5_surrogate_labeling(
+        self, dist_config: Any, surrogate_path: Path, fine_tuned_potential: Potential | None = None
     ) -> Path:
         """Step 5: Surrogate Labeling."""
         self.logger.info("Step 5: Surrogate Labeling")
         try:
+            # Update mace_oracle model first if provided!
+            if fine_tuned_potential and hasattr(self.mace_oracle, "update_model"):
+                self.mace_oracle.update_model(fine_tuned_potential.path)
+
             # Use MACE Oracle for labeling
             mace_labeler = self.mace_oracle
             # Ensure it has compute_batch (inherited from Oracle/BaseOracle)
             if not isinstance(mace_labeler, Oracle):
                 msg = "MACE Oracle does not support labeling (compute_batch)."
                 raise TypeError(msg)
-
-            dist_config = self.config.distillation
 
             def load_stream() -> Iterator[StructureMetadata]:
                 for atoms in self.dataset_manager.load_iter(surrogate_path):
@@ -328,12 +324,13 @@ class MaceDistillationWorkflow:
                 mode="wb",  # Overwrite labeled dataset
                 calculate_checksum=False,
             )
-            return surrogate_dataset_path
         except Exception:
             self.logger.exception("Step 5 (Surrogate Labeling) failed")
             raise
+        else:
+            return surrogate_dataset_path
 
-    def _step6_pacemaker_base_training(
+    def step6_pacemaker_base_training(
         self, surrogate_dataset_path: Path
     ) -> Potential:
         """Step 6: Pacemaker Base Training."""
@@ -350,7 +347,7 @@ class MaceDistillationWorkflow:
             self.logger.exception("Step 6 (Pacemaker Base Training) failed")
             raise
 
-    def _step7_delta_learning(
+    def step7_delta_learning(
         self, dist_config: Any, base_potential: Potential
     ) -> Potential:
         """Step 7: Delta Learning (Fine-tuning with DFT)."""
