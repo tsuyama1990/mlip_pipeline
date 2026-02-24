@@ -44,7 +44,7 @@ def test_pipeline_integration(tmp_path: Path) -> None:
     config = load_config(config_file)
 
     # Initialize Orchestrator (it uses default mock modules if none provided)
-    orchestrator = Orchestrator(config)
+    orchestrator = Orchestrator(config, base_dir=tmp_path)
 
     # We need to mock the validator because real validator runs checks on mock data which might fail
     # or just use MockValidator if we want pure pipeline test.

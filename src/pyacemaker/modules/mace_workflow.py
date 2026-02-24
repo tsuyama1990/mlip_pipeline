@@ -1,10 +1,10 @@
-import logging
 from collections.abc import Iterator
 from itertools import islice
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ase.io import write
+from loguru import logger
 
 from pyacemaker.core.base import BaseComponent
 from pyacemaker.core.config import DistillationConfig
@@ -15,7 +15,6 @@ from pyacemaker.core.utils import (
 )
 from pyacemaker.core.validation import validate_safe_path
 from pyacemaker.domain_models.state import PipelineState
-from pyacemaker.domain_models.structure import StructureMetadata
 from pyacemaker.modules.active_learner import ActiveLearner
 from pyacemaker.modules.oracle import MaceSurrogateOracle
 from pyacemaker.modules.structure_generator import StructureGenerator
@@ -24,9 +23,6 @@ from pyacemaker.oracle.manager import OracleManager
 
 if TYPE_CHECKING:
     from ase import Atoms
-
-
-logger = logging.getLogger(__name__)
 
 
 class MaceDistillationWorkflow(BaseComponent):
@@ -53,7 +49,8 @@ class MaceDistillationWorkflow(BaseComponent):
         pacemaker_trainer: PacemakerTrainer,
         mace_trainer: Any,  # MaceTrainer type
         work_dir: Path,
-    ):
+        batch_size: int = 100,  # Default batch size for labeling if not in config
+    ) -> None:
         super().__init__(config)
         self.dataset_manager = dataset_manager
         self.active_learner = active_learner
@@ -63,6 +60,7 @@ class MaceDistillationWorkflow(BaseComponent):
         self.pacemaker_trainer = pacemaker_trainer
         self.mace_trainer = mace_trainer
         self.work_dir = work_dir
+        self.batch_size = batch_size
 
         # Ensure work directory exists
         self.work_dir.mkdir(parents=True, exist_ok=True)
@@ -70,6 +68,7 @@ class MaceDistillationWorkflow(BaseComponent):
     def _get_pool_path(self, step_num: int) -> Path:
         """Generates a safe path for the structure pool."""
         filename = f"step{step_num}_pool.xyz"
+        # Validate path safety
         return validate_safe_path(self.work_dir / filename)
 
     def step1_direct_sampling(self, state: PipelineState) -> PipelineState:
@@ -80,10 +79,14 @@ class MaceDistillationWorkflow(BaseComponent):
         pool_path = self._get_pool_path(1)
 
         # Generate structures as a stream
-        candidates_iter = self.structure_generator.generate_candidates()
+        # Correct method name based on interface
+        candidates_iter = self.structure_generator.generate_direct_samples(
+            n_samples=self.config.step1_direct_sampling.target_points,
+            objective=self.config.step1_direct_sampling.objective
+        )
 
         # Validation wrapper for the stream
-        def validated_stream(iterator: Iterator[StructureMetadata]) -> Iterator[StructureMetadata]:
+        def validated_stream(iterator: Iterator[Any]) -> Iterator[Any]:
             for s in iterator:
                 # We can add lightweight validation here if needed on metadata
                 yield s
@@ -108,8 +111,9 @@ class MaceDistillationWorkflow(BaseComponent):
         logger.info("Step 2: Active Learning Loop")
         pool_path_str = state.artifacts.get("pool_path")
         if not pool_path_str:
-            raise ValueError("pool_path not found in state artifacts")
-        pool_path = Path(pool_path_str)
+            raise ValueError("Artifact 'pool_path' missing in state")
+
+        pool_path = Path(str(pool_path_str))
 
         try:
             # Active Learner manages the loop: select -> label -> train -> repeat
@@ -146,10 +150,17 @@ class MaceDistillationWorkflow(BaseComponent):
         surrogate_pool_path = self._get_pool_path(4)
 
         # Generate a large number of structures
-        # Use islice to limit count if generator is infinite, but ensure it's large enough
-        target_count = 10000  # Example target, should be config driven
+        # Use config-driven limit
+        target_count = self.config.step4_surrogate_sampling.target_points
 
-        candidates_iter = self.structure_generator.generate_candidates()
+        # Reuse direct sampling or a different method if configured?
+        # Assuming generate_direct_samples is generic enough or we use another method.
+        # The previous code used generate_candidates which implies simple generation.
+        # We'll use generate_direct_samples again for now, assuming it pulls from generator config.
+        candidates_iter = self.structure_generator.generate_direct_samples(
+            n_samples=target_count + 1000, # Request more to ensure we hit limit
+            objective=self.config.step1_direct_sampling.objective # Reuse objective?
+        )
         limited_iter = islice(candidates_iter, target_count)
 
         count = self.dataset_manager.save_metadata_stream(limited_iter, surrogate_pool_path)
@@ -165,17 +176,24 @@ class MaceDistillationWorkflow(BaseComponent):
         """
         logger.info("Step 5: Surrogate Labeling with MACE")
 
-        surrogate_pool_str = state.artifacts.get("surrogate_pool_path")
-        if not surrogate_pool_str:
-            raise ValueError("surrogate_pool_path not found in artifacts")
-        surrogate_pool_path = Path(surrogate_pool_str)
+        surrogate_pool_path_str = state.artifacts.get("surrogate_pool_path")
+        if not surrogate_pool_path_str:
+            raise ValueError("Artifact 'surrogate_pool_path' missing in state")
+
+        surrogate_pool_path = validate_safe_path(Path(str(surrogate_pool_path_str)))
 
         labeled_pool_path = self.work_dir / "step5_surrogate_labeled.xyz"
+        validate_safe_path(labeled_pool_path)
 
-        mace_model_str = state.artifacts.get("mace_model_path")
-        if not mace_model_str:
-             raise ValueError("mace_model_path not found in artifacts")
-        mace_model_path = Path(mace_model_str)
+        mace_model_path_str = state.artifacts.get("mace_model_path")
+        if not mace_model_path_str:
+             # Fallback or error? Usually error if AL loop succeeded.
+             # If step 2 was skipped or failed but we continue?
+             logger.warning("mace_model_path missing, using default/mock if allowed")
+             # For strictness:
+             raise ValueError("Artifact 'mace_model_path' missing in state")
+
+        mace_model_path = Path(str(mace_model_path_str))
 
         # Update Oracle with the trained model
         self.mace_oracle.update_model(mace_model_path)
@@ -193,7 +211,7 @@ class MaceDistillationWorkflow(BaseComponent):
         # but here we might need to be careful. ASE calculator is per-atoms usually)
 
         def labeled_stream_gen(iterator: Iterator["Atoms"]) -> Iterator["Atoms"]:
-            batch_size = 100 # Configurable
+            batch_size = self.batch_size
             batch: list[Atoms] = []
             for atoms in iterator:
                 # Validation
@@ -232,10 +250,17 @@ class MaceDistillationWorkflow(BaseComponent):
             labeled_pool_path.unlink()
 
         # Write incrementally
-        with open(labeled_pool_path, "w") as f:
-             for atoms in labeled_stream_gen(atoms_iter):
-                 write(f, atoms, format="extxyz")
-                 count += 1
+        # We can't easily use ASE write(append=True) efficiently if we open/close every time.
+        # Better to keep file open.
+        # Note: ASE's write supports a file object.
+        try:
+            with open(labeled_pool_path, "w") as f:
+                 for atoms in labeled_stream_gen(atoms_iter):
+                     write(f, atoms, format="extxyz")
+                     count += 1
+        except Exception as e:
+            logger.error(f"Failed to write labeled structures to {labeled_pool_path}: {e}")
+            raise
 
         logger.info(f"Labeled {count} surrogate structures in {labeled_pool_path}")
         state.artifacts["labeled_surrogate_path"] = str(labeled_pool_path)
@@ -247,10 +272,11 @@ class MaceDistillationWorkflow(BaseComponent):
         Step 6: Train Pacemaker potential on the surrogate data.
         """
         logger.info("Step 6: Pacemaker Base Training")
-        labeled_data_str = state.artifacts.get("labeled_surrogate_path")
-        if not labeled_data_str:
-            raise ValueError("labeled_surrogate_path not found in artifacts")
-        labeled_data_path = Path(labeled_data_str)
+        labeled_data_path_str = state.artifacts.get("labeled_surrogate_path")
+        if not labeled_data_path_str:
+            raise ValueError("Artifact 'labeled_surrogate_path' missing in state")
+
+        labeled_data_path = Path(str(labeled_data_path_str))
 
         output_pot_path = self.pacemaker_trainer.train(
             training_data=labeled_data_path,

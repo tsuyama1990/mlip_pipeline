@@ -85,7 +85,7 @@ class TestFullCycleIntegration:
 
             mock_select.return_value = mock_active_set
 
-            orchestrator = Orchestrator(config)
+            orchestrator = Orchestrator(config, base_dir=tmp_path)
 
             # Pre-populate active_set file so orchestrator can load it
             # We need to save something valid there
@@ -141,7 +141,7 @@ class TestFullCycleIntegration:
 
             mock_train.side_effect = consume_stream
 
-            orchestrator = Orchestrator(config)
+            orchestrator = Orchestrator(config, base_dir=tmp_path)
             # Pre-populate dataset so training runs
             dataset_path = orchestrator.dataset_path
             orchestrator.dataset_manager.save_iter((Atoms("Fe") for _ in range(1)), dataset_path)

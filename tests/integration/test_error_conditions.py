@@ -40,7 +40,7 @@ class TestErrorConditions:
 
     def test_checksum_corruption_detection(self, error_config: PYACEMAKERConfig) -> None:
         """Test that dataset loading fails if checksum is corrupted."""
-        orchestrator = Orchestrator(error_config)
+        orchestrator = Orchestrator(error_config, base_dir=tmp_path)
         dataset_path = orchestrator.dataset_path
 
         # Create valid dataset
@@ -61,7 +61,7 @@ class TestErrorConditions:
 
     def test_partial_write_recovery(self, error_config: PYACEMAKERConfig) -> None:
         """Test behavior when dataset file is truncated/corrupted."""
-        orchestrator = Orchestrator(error_config)
+        orchestrator = Orchestrator(error_config, base_dir=tmp_path)
         dataset_path = orchestrator.dataset_path
 
         # Write valid frame
@@ -83,7 +83,7 @@ class TestErrorConditions:
 
     def test_orchestrator_dataset_corruption_handling(self, error_config: PYACEMAKERConfig) -> None:
         """Test Orchestrator resilience to dataset corruption during cycle."""
-        orchestrator = Orchestrator(error_config)
+        orchestrator = Orchestrator(error_config, base_dir=tmp_path)
 
         # Corrupt dataset (invalid gzip)
         dataset_path = orchestrator.dataset_path

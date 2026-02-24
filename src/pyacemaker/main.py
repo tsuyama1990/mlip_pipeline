@@ -33,7 +33,7 @@ def _handle_error(e: Exception) -> NoReturn:
 
 def _run_pipeline(config: PYACEMAKERConfig) -> None:
     """Run the pipeline logic."""
-    orchestrator = Orchestrator(config)
+    orchestrator = Orchestrator(config, base_dir=config.project.root_dir)
 
     # Inject mock validator if using mock oracle to ensure pipeline passes in dry-run/mock mode
     # Real validation requires calculated properties which might be missing in simple mocks.
