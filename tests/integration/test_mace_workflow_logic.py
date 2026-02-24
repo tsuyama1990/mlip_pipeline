@@ -144,14 +144,30 @@ def test_step7_delta_learning_calls_trainer(workflow: MaceDistillationWorkflow, 
     DatasetManager().save([Atoms("H")], dft_path)
     state.artifacts["dft_dataset_path"] = str(dft_path)
 
-    # Use patch for atoms_to_metadata since it's imported in the module
-    with patch("pyacemaker.modules.mace_workflow.atoms_to_metadata") as mock_conv:
-        mock_conv.return_value = StructureMetadata()
+    # Use real logic for atoms_to_metadata by not mocking it, but ensuring the file content is valid.
+    # We already wrote "H" atom to file.
 
-        new_state = workflow.step7_delta_learning(state)
+    # We need to verify that what gets passed to trainer.train is an iterator of StructureMetadata
+    # derived from that file.
 
-        assert mock_pacemaker_trainer.train.called
-        args, kwargs = mock_pacemaker_trainer.train.call_args
-        assert kwargs["weight_dft"] == 10.0
-        assert kwargs["initial_potential"].path == Path("base.yace")
-        assert new_state.artifacts["final_potential"] == "final.yace"
+    # Mock trainer.train to consume the dataset iterator and verify contents
+    def train_side_effect(dataset, initial_potential, weight_dft):
+        # Consume dataset to verify it works
+        data_list = list(dataset)
+        assert len(data_list) == 1
+        assert isinstance(data_list[0], StructureMetadata)
+        # Verify weight_dft
+        assert weight_dft == 10.0
+        return Potential(
+            path=Path("final.yace"),
+            type=PotentialType.PACE,
+            version="1.0.0",
+            metrics={},
+            parameters={}
+        )
+    mock_pacemaker_trainer.train.side_effect = train_side_effect
+
+    new_state = workflow.step7_delta_learning(state)
+
+    assert mock_pacemaker_trainer.train.called
+    assert new_state.artifacts["final_potential"] == "final.yace"

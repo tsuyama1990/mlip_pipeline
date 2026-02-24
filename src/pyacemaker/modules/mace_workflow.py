@@ -157,10 +157,10 @@ class MaceDistillationWorkflow:
             # Use config-driven limit
             target_count = self.config.step4_surrogate_sampling.target_points
 
-            # Reuse direct sampling
+            # Reuse direct sampling with specific surrogate sampling method/objective
             candidates_iter = self.structure_generator.generate_direct_samples(
                 n_samples=target_count,
-                objective=self.config.step1_direct_sampling.objective # Reuse objective?
+                objective=self.config.step4_surrogate_sampling.method
             )
 
             # Ensure memory safety by strictly slicing the iterator
