@@ -3,11 +3,14 @@
 from collections.abc import Callable, Iterable, Iterator
 from itertools import chain
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any
 
-from pyacemaker.core.base import BaseModule, Metrics, ModuleResult
+from loguru import logger  # Using loguru directly as in other modules
+
+from pyacemaker.core.base import Metrics, ModuleResult
 from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
-from pyacemaker.core.dataset import DatasetSplitter
+from pyacemaker.core.dataset import DatasetSplitter, SeedSelector
+from pyacemaker.core.factory import ModuleFactory
 from pyacemaker.core.interfaces import (
     CycleResult,
     DynamicsEngine,
@@ -19,28 +22,24 @@ from pyacemaker.core.interfaces import (
 from pyacemaker.core.interfaces import (
     Validator as ValidatorInterface,
 )
-from pyacemaker.core.utils import atoms_to_metadata, metadata_to_atoms
+from pyacemaker.core.utils import (
+    atoms_to_metadata,
+    metadata_to_atoms,
+    save_metadata_stream,
+)
 from pyacemaker.domain_models.models import (
     CycleStatus,
     Potential,
     StructureMetadata,
 )
-from pyacemaker.modules.dynamics_engine import EONEngine, LAMMPSEngine
-from pyacemaker.modules.oracle import DFTOracle, MockOracle
-from pyacemaker.modules.structure_generator import (
-    AdaptiveStructureGenerator,
-    RandomStructureGenerator,
-)
+from pyacemaker.domain_models.state import PipelineState
+from pyacemaker.modules.active_learner import ActiveLearner
+from pyacemaker.modules.mace_workflow import MaceDistillationWorkflow
+from pyacemaker.modules.oracle import MaceSurrogateOracle
 from pyacemaker.modules.trainer import PacemakerTrainer
 from pyacemaker.modules.validator import Validator
 from pyacemaker.oracle.dataset import DatasetManager
-
-T = TypeVar("T", bound=BaseModule)
-
-
-def _create_default_module(module_class: type[T], config: PYACEMAKERConfig) -> T:
-    """Factory to create a default module instance."""
-    return module_class(config)
+from pyacemaker.trainer.mace_trainer import MaceTrainer
 
 
 class Orchestrator(IOrchestrator):
@@ -49,69 +48,73 @@ class Orchestrator(IOrchestrator):
     def __init__(
         self,
         config: PYACEMAKERConfig,
+        base_dir: Path, # Added to match instantiation in main and tests
         structure_generator: StructureGenerator | None = None,
         oracle: Oracle | None = None,
         trainer: Trainer | None = None,
         dynamics_engine: DynamicsEngine | None = None,
         validator: Validator | None = None,
+        mace_trainer: Trainer | None = None,
+        mace_oracle: MaceSurrogateOracle | None = None, # Refined type hint
+        active_learner: ActiveLearner | None = None,
+        pacemaker_trainer: PacemakerTrainer | None = None, # Added
     ) -> None:
-        """Initialize the orchestrator and sub-modules.
-
-        Dependencies can be injected; otherwise, default implementations are instantiated via factory.
-        """
+        """Initialize the orchestrator and sub-modules."""
         super().__init__(config)
         self.config = config
+        self.base_dir = base_dir # Used for state file and work dir
 
         # Dependency Injection with fallbacks using factory pattern
-        # Logic for selecting structure generator strategy
-        if structure_generator:
-            self.structure_generator = structure_generator
-        else:
-            # Factory logic for structure generator based on config
-            sg_cls = (
-                AdaptiveStructureGenerator
-                if config.structure_generator.strategy == "adaptive"
-                else RandomStructureGenerator
-            )
-            self.structure_generator = _create_default_module(sg_cls, config)
+        self.structure_generator = (
+            structure_generator or ModuleFactory.create_structure_generator(config)
+        )
+        self.oracle: Oracle = oracle or ModuleFactory.create_oracle(config)
+        self.trainer: Trainer = trainer or ModuleFactory.create_trainer(config)
 
-        # Select Oracle implementation based on config
-        oracle_cls = MockOracle if config.oracle.mock else DFTOracle
-        self.oracle: Oracle = oracle or _create_default_module(oracle_cls, config)
+        # Initialize MaceTrainer if needed for distillation
+        self.mace_trainer: Trainer | None = mace_trainer
+        if not self.mace_trainer and config.distillation.enable_mace_distillation:
+            self.mace_trainer = ModuleFactory.create_mace_trainer(config)
 
-        self.trainer: Trainer = trainer or _create_default_module(PacemakerTrainer, config)
+        # Initialize MaceOracle if needed for distillation
+        self.mace_oracle: MaceSurrogateOracle | None = mace_oracle
+        if not self.mace_oracle and config.distillation.enable_mace_distillation:
+            oracle_instance = ModuleFactory.create_mace_oracle(config)
+            if isinstance(oracle_instance, MaceSurrogateOracle):
+                self.mace_oracle = oracle_instance
+            else:
+                self.mace_oracle = oracle_instance  # type: ignore
 
-        engine_cls: type[DynamicsEngine] = LAMMPSEngine
-        if config.dynamics_engine.engine == "eon":
-            engine_cls = EONEngine
+        self.pacemaker_trainer = pacemaker_trainer
+        if not self.pacemaker_trainer and config.distillation.enable_mace_distillation:
+            # Create PacemakerTrainer specifically for distillation (Step 6/7)
+            # We can reuse ModuleFactory.create_trainer if it returns PacemakerTrainer
+            # but for type safety let's instantiate directly or cast
+            trainer_instance = ModuleFactory.create_trainer(config)
+            if isinstance(trainer_instance, PacemakerTrainer):
+                self.pacemaker_trainer = trainer_instance
+            else:
+                # If factory returned something else (e.g. via config override), force default
+                self.pacemaker_trainer = PacemakerTrainer(config)
 
-        self.dynamics_engine: DynamicsEngine = dynamics_engine or _create_default_module(
-            engine_cls, config
+        self.dynamics_engine: DynamicsEngine = (
+            dynamics_engine or ModuleFactory.create_dynamics_engine(config)
+        )
+        self.validator: ValidatorInterface = (
+            validator or ModuleFactory.create_validator(config)
         )
 
-        # If running in full mock mode (e.g. Oracle is mock), use MockValidator?
-        # Or let Validator handle it. Validator now calls check_phonons which needs a real calculator.
-        # If we are in mock mode, we don't have a real potential file usually.
-        # So we should use MockValidator if oracle.mock is True?
-
-        val_cls: type[ValidatorInterface] = Validator
-        if config.oracle.mock:
-            from pyacemaker.modules.validator import MockValidator
-
-            val_cls = MockValidator
-
-        self.validator: ValidatorInterface = validator or _create_default_module(val_cls, config)
+        self.active_learner = active_learner or ActiveLearner(config.orchestrator, self.oracle) # Pass required args
 
         # State
         self.current_potential: Potential | None = None
         # Dataset is now file-based to prevent OOM
-        # Use config option instead of hardcoded
         self.dataset_path = (
             self.config.project.root_dir / "data" / self.config.orchestrator.dataset_file
         )
         # Validation set path
         self.validation_path = (
-            self.config.project.root_dir / "data" / CONSTANTS.default_validation_file
+            self.config.project.root_dir / "data" / self.config.orchestrator.validation_file
         )
         # Training set path (persistent subset)
         self.training_path = self.config.project.root_dir / "data" / CONSTANTS.default_training_file
@@ -120,67 +123,129 @@ class Orchestrator(IOrchestrator):
         self.cycle_count = 0
         self.processed_items_count = 0
 
+        # State persistence
+        self.state_file = self.base_dir / "pipeline_state.json"
+
     def run(self) -> ModuleResult:
-        """Run the full active learning pipeline."""
-        self.logger.info("Starting Active Learning Pipeline")
+        """Run the active learning pipeline."""
+        logger.info("Starting Active Learning Pipeline")
 
-        # 0. Cold Start (Initial Dataset)
-        if not self.dataset_path.exists():
-            self.logger.info("Cold Start: Generating initial structures")
-            self._run_cold_start()
+        # Check for MACE Distillation Mode
+        if self.config.distillation.enable_mace_distillation:
+            logger.info("Mode: MACE Distillation Workflow")
+            return self._run_mace_distillation()
 
-        # Main Loop
-        max_cycles = self.config.orchestrator.max_cycles
-        while self.cycle_count < max_cycles:
-            self.cycle_count += 1
-            self.logger.info(f"--- Cycle {self.cycle_count}/{max_cycles} ---")
+        # Default: Classic Active Learning
+        logger.info("Mode: Standard Active Learning Loop")
+        return self._run_active_learning_loop()
 
-            result = self.run_cycle()
-
-            if result.status == CycleStatus.CONVERGED:
-                self.logger.info("Convergence reached!")
-                break
-            if result.status == CycleStatus.FAILED:
-                self.logger.error(f"Cycle failed! Reason: {result.error}")
-                return ModuleResult(
-                    status=CycleStatus.FAILED,
-                    metrics=Metrics.model_validate({"cycles": self.cycle_count}),
-                )
-
-        self.logger.info("Pipeline completed")
-        return ModuleResult(
-            status="success",
-            metrics=Metrics.model_validate({"cycles": self.cycle_count}),
-        )
-
-    def _save_dataset_stream(self, stream: Iterator[StructureMetadata]) -> None:
-        """Convert metadata stream to atoms and save to dataset.
-
-        Optimized to skip expensive checksum calculation during active learning loop.
-        Removes stale checksum file to prevent validation failures.
-        """
-        atoms_stream = (metadata_to_atoms(s) for s in stream)
-        # Skip checksum calculation for O(1) append
-        self.dataset_manager.save_iter(
-            atoms_stream, self.dataset_path, mode="ab", calculate_checksum=False
-        )
-        # Remove stale checksum file if it exists, as it no longer matches the dataset
-        checksum_path = self.dataset_path.with_suffix(self.dataset_path.suffix + ".sha256")
-        if checksum_path.exists():
+    def _load_pipeline_state(self) -> PipelineState:
+        """Load existing pipeline state or create new."""
+        if self.state_file.exists():
             try:
-                checksum_path.unlink()
-            except OSError:
-                self.logger.warning("Failed to remove stale checksum file.")
+                logger.info(f"Loading pipeline state from {self.state_file}")
+                return PipelineState.model_validate_json(self.state_file.read_text())
+            except Exception:
+                logger.warning("Failed to load pipeline state. Starting fresh.")
 
-    def _run_cold_start(self) -> None:
-        """Execute cold start to generate initial dataset."""
-        initial_structures = self.structure_generator.generate_initial_structures()
-        # Stream: initial_structures (iter) -> compute_batch (iter) -> save (append)
-        computed_stream = self.oracle.compute_batch(initial_structures)
-        self._save_dataset_stream(computed_stream)
+        return PipelineState(current_step=1)
+
+    def _save_pipeline_state(self, state: PipelineState) -> None:
+        """Save pipeline state."""
+        try:
+            self.state_file.write_text(state.model_dump_json(indent=2))
+        except Exception:
+            logger.exception("Failed to save pipeline state")
+
+    def _create_mace_workflow(self) -> MaceDistillationWorkflow:
+        """Create MaceDistillationWorkflow instance.
+
+        Extracted for testability and dependency injection.
+        """
+        if not self.mace_trainer:
+            msg = "MACE Trainer not initialized for MACE workflow."
+            raise RuntimeError(msg)
+        if not self.mace_oracle:
+            msg = "MACE Oracle not initialized for MACE workflow."
+            raise RuntimeError(msg)
+        if not self.pacemaker_trainer:
+            msg = "Pacemaker Trainer not initialized for MACE workflow."
+            raise RuntimeError(msg)
+
+        # Ensure correct types for MaceDistillationWorkflow
+        if not isinstance(self.mace_trainer, MaceTrainer):
+            # In production, ModuleFactory.create_mace_trainer returns MaceTrainer
+            # but typed as Trainer. We cast it here.
+            # If for some reason it's not MaceTrainer (e.g. mock), we might have issues if workflow relies on specific methods.
+            # For now, we assume it complies.
+            pass
+
+        batch_size = (
+            self.config.oracle.mace.batch_size if self.config.oracle.mace else 100
+        )
+
+        return MaceDistillationWorkflow(
+            config=self.config.distillation,
+            dataset_manager=self.dataset_manager,
+            active_learner=self.active_learner,
+            structure_generator=self.structure_generator,
+            oracle=self.oracle,
+            mace_oracle=self.mace_oracle,
+            pacemaker_trainer=self.pacemaker_trainer,
+            mace_trainer=self.mace_trainer,  # type: ignore
+            work_dir=self.base_dir / "distillation_work",
+            batch_size=batch_size,
+        )
+
+    def _run_mace_distillation(self) -> ModuleResult:
+        """Run the 7-Step MACE Distillation Workflow with State Management."""
+        try:
+            workflow = self._create_mace_workflow()
+        except RuntimeError as e:
+            return ModuleResult(status="failed", metrics=Metrics(), error=str(e))
+
+        state = self._load_pipeline_state()
+
+        steps = [
+            (1, workflow.step1_direct_sampling),
+            (2, workflow.step2_active_learning_loop),
+            (3, workflow.step3_final_mace_training),
+            (4, workflow.step4_surrogate_data_generation),
+            (5, workflow.step5_surrogate_labeling),
+            (6, workflow.step6_pacemaker_base_training),
+            (7, workflow.step7_delta_learning),
+        ]
+
+        try:
+            for step_num, step_func in steps:
+                if state.current_step <= step_num:
+                    logger.info(f"Executing Step {step_num}")
+                    try:
+                        state = step_func(state)
+                        self._save_pipeline_state(state)
+                    except Exception as e:
+                        logger.error(f"Step {step_num} failed: {e}")
+                        raise
+                else:
+                    logger.info(f"Skipping Step {step_num} (Already completed)")
+
+            return ModuleResult(
+                status="success",
+                metrics=Metrics.model_validate({"steps_completed": state.completed_steps}),
+                artifacts={"potential": str(state.artifacts.get("final_potential"))}
+            )
+
+        except Exception as e:
+            logger.exception("Orchestration failed")
+            return ModuleResult(
+                status="failed",
+                metrics=Metrics(),
+                error=str(e),
+            )
 
     def run_cycle(self) -> CycleResult:
-        """Execute one active learning cycle."""
+        """Execute one active learning cycle (Standard Loop)."""
+        # This method is kept for interface compliance and used by _run_active_learning_loop
         # 1. Training (Refinement)
         if not self._execute_phase(self._run_training_phase, "Training"):
             return CycleResult(
@@ -189,7 +254,7 @@ class Orchestrator(IOrchestrator):
 
         # 2. Validation
         if not self._run_validation_phase():
-            self.logger.error("Cycle halted due to validation failure.")
+            logger.error("Cycle halted due to validation failure.")
             return CycleResult(
                 status=CycleStatus.FAILED, metrics=Metrics(), error="Validation failed"
             )
@@ -198,7 +263,7 @@ class Orchestrator(IOrchestrator):
         try:
             selected_structures = self._run_exploration_and_selection_phase()
         except Exception as e:
-            self.logger.exception("Exploration/Selection phase failed")
+            logger.exception("Exploration/Selection phase failed")
             return CycleResult(status=CycleStatus.FAILED, metrics=Metrics(), error=str(e))
 
         if selected_structures is None:
@@ -214,19 +279,66 @@ class Orchestrator(IOrchestrator):
 
         return CycleResult(status=CycleStatus.TRAINING, metrics=Metrics())
 
+    def _run_active_learning_loop(self) -> ModuleResult:
+        """Run standard active learning loop."""
+        # 0. Cold Start
+        if not self.dataset_path.exists():
+            logger.info("Cold Start: Generating initial structures")
+            self._run_cold_start()
+
+        # Main Loop
+        max_cycles = self.config.orchestrator.max_cycles
+        while self.cycle_count < max_cycles:
+            self.cycle_count += 1
+            logger.info(f"--- Cycle {self.cycle_count}/{max_cycles} ---")
+
+            result = self.run_cycle()
+
+            if result.status == CycleStatus.CONVERGED:
+                logger.info("Convergence reached!")
+                break
+            if result.status == CycleStatus.FAILED:
+                logger.error(f"Cycle failed! Reason: {result.error}")
+                return ModuleResult(
+                    status=CycleStatus.FAILED,
+                    metrics=Metrics.model_validate({"cycles": self.cycle_count}),
+                )
+
+        logger.info("Pipeline completed")
+        return ModuleResult(
+            status="success",
+            metrics=Metrics.model_validate({"cycles": self.cycle_count}),
+        )
+
+    def _run_cold_start(self) -> None:
+        """Execute cold start to generate initial dataset."""
+        initial_structures = self.structure_generator.generate_initial_structures()
+        # Stream: initial_structures (iter) -> compute_batch (iter) -> save (append)
+        computed_stream = self.oracle.compute_batch(initial_structures)
+
+        save_metadata_stream(
+            self.dataset_manager,
+            computed_stream,
+            self.dataset_path,
+            mode="ab",
+            calculate_checksum=False
+        )
+
     def _execute_phase(self, phase_func: Callable[[], Any], phase_name: str) -> bool:
         """Execute a phase with error handling."""
         try:
             phase_func()
         except Exception:
-            self.logger.exception(f"{phase_name} phase failed")
+            logger.exception(f"{phase_name} phase failed")
             return False
         return True
 
-    def _run_training_phase(self) -> None:
-        """Execute training phase with incremental partitioning."""
-        self.logger.info(f"Phase: Training (Incremental from index {self.processed_items_count})")
+    def _prepare_training_data(self) -> int:
+        """Split new dataset items into training/validation sets.
 
+        Returns:
+             int: Number of new items processed.
+        """
         # 1. Incremental Partitioning
         # Only process new items from dataset
         splitter = DatasetSplitter(
@@ -251,16 +363,22 @@ class Orchestrator(IOrchestrator):
             calculate_checksum=False,  # Streaming append
         )
 
-        # Update progress tracking
-        added_count = splitter.processed_count
+        return splitter.processed_count
+
+    def _run_training_phase(self) -> None:
+        """Execute training phase with incremental partitioning."""
+        logger.info(f"Phase: Training (Incremental from index {self.processed_items_count})")
+
+        added_count = self._prepare_training_data()
         self.processed_items_count += added_count
-        self.logger.info(
+
+        logger.info(
             f"Processed {added_count} new items. Total processed: {self.processed_items_count}"
         )
 
         # 2. Train on Full Training Set
         if not self.training_path.exists():
-            self.logger.warning("No training data available.")
+            logger.warning("No training data available.")
             return
 
         # Pass iterator over persistent training set to trainer
@@ -268,6 +386,8 @@ class Orchestrator(IOrchestrator):
         # but avoids O(N_total) splitting logic.
 
         # Need to convert atoms back to metadata for Trainer interface
+        # load_iter is a generator, so this is already streaming.
+        # We wrap it to convert Atoms -> StructureMetadata on the fly.
         def training_stream() -> Iterator[StructureMetadata]:
             # Use buffer_size for efficiency
             for atoms in self.dataset_manager.load_iter(self.training_path):
@@ -282,13 +402,13 @@ class Orchestrator(IOrchestrator):
         Returns:
             bool: True if validation passed, False otherwise.
         """
-        self.logger.info("Phase: Validation")
+        logger.info("Phase: Validation")
         if not self.current_potential:
-            self.logger.warning("No potential to validate.")
+            logger.warning("No potential to validate.")
             return False
 
         if not self.validation_path.exists():
-            self.logger.warning("Empty validation set.")
+            logger.warning("Empty validation set.")
             return True
 
         # Load validation set from file
@@ -302,102 +422,120 @@ class Orchestrator(IOrchestrator):
         try:
             val_result = self.validator.validate(self.current_potential, validation_stream())
         except Exception:
-            self.logger.exception("Validation failed during processing")
+            logger.exception("Validation failed during processing")
             return False
 
         if val_result.status == "failed":
-            self.logger.error(f"Validation failed: {val_result.metrics}")
+            logger.error(f"Validation failed: {val_result.metrics}")
             return False
 
         return True
 
-    def _load_seeds_from_dataset(self, path: Path, limit: int) -> list[StructureMetadata]:
-        """Load seeds from a dataset file up to a limit."""
-        seeds = []
-        try:
-            for i, atoms in enumerate(self.dataset_manager.load_iter(path)):
-                if i >= limit:
-                    break
-                seeds.append(atoms_to_metadata(atoms))
-        except Exception:
-            self.logger.warning(f"Failed to load seeds from {path}.")
-        return seeds
-
     def _get_exploration_seeds(self, n_seeds: int = 20) -> list[StructureMetadata]:
         """Get seed structures for exploration."""
-        seeds: list[StructureMetadata] = []
+        selector = SeedSelector(self.dataset_manager)
+        seeds = selector.get_seeds(
+            self.validation_path,
+            self.training_path,
+            self.structure_generator,
+            n_seeds,
+        )
 
-        # Priority 1: Use validation set (unseen data) if available
-        if self.validation_path.exists():
-            seeds.extend(self._load_seeds_from_dataset(self.validation_path, n_seeds))
-
-        # Priority 2: Fill remaining from training set
-        if len(seeds) < n_seeds and self.training_path.exists():
-            remaining = n_seeds - len(seeds)
-            seeds.extend(self._load_seeds_from_dataset(self.training_path, remaining))
-
-        # Priority 3: If still empty, use generator
         if not seeds:
-            self.logger.warning("No seeds found in datasets. Using generator.")
-            seeds = list(self.structure_generator.generate_initial_structures())
-            if len(seeds) > n_seeds:
-                seeds = seeds[:n_seeds]
-
-        # Shuffle if we want randomness?
-        if len(seeds) > n_seeds:
-            # We already capped reading, but just in case
-            seeds = seeds[:n_seeds]
+            logger.warning("No seeds found in datasets or generator.")
 
         return seeds
 
-    def _run_exploration_and_selection_phase(self) -> list[StructureMetadata] | None:
+    def _run_exploration_and_selection_phase(
+        self,
+    ) -> Iterable[StructureMetadata] | None:
         """Execute exploration and selection phases.
 
         Returns:
-            List of selected structures for calculation, or None if converged.
+            Iterable of selected structures for calculation, or None if converged.
         """
-        self.logger.info("Phase: Exploration")
+        logger.info("Phase: Exploration")
         if not self.current_potential:
             return None
 
         # Select seeds for exploration
         seeds = self._get_exploration_seeds()
         if not seeds:
-            self.logger.warning("No seeds available for exploration.")
+            logger.warning("No seeds available for exploration.")
             return None
 
-        self.logger.info(f"Exploration starting with {len(seeds)} seeds.")
-        high_uncertainty_iter = self.dynamics_engine.run_exploration(self.current_potential, seeds)
+        logger.info(f"Exploration starting with {len(seeds)} seeds.")
 
-        # Check if we found anything without consuming the whole stream
-        try:
-            first_structure = next(high_uncertainty_iter)
-        except StopIteration:
-            self.logger.info("No high uncertainty structures found. Converged?")
-            return None
+        # Run Dynamics Engine (Exploration)
+        high_uncertainty_stream, max_gamma_container = self._run_exploration_stream(seeds)
 
-        # Reconstruct iterator
-        high_uncertainty_stream = chain([first_structure], high_uncertainty_iter)
-
-        # Spy on the stream to calculate metrics (max gamma) without materializing list
-        max_gamma = 0.0
-
-        def stats_spy(iterator: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
-            nonlocal max_gamma
-            for s in iterator:
-                if s.uncertainty_state and s.uncertainty_state.gamma_max:
-                    max_gamma = max(max_gamma, s.uncertainty_state.gamma_max)
-                yield s
-
-        high_uncertainty_stream_with_stats = stats_spy(high_uncertainty_stream)
+        if high_uncertainty_stream is None:
+             logger.info("No high uncertainty structures found. Converged?")
+             return None
 
         # Selection (Local Candidates & Active Set)
-        self.logger.info("Phase: Selection")
+        logger.info("Phase: Selection")
+        active_set_structures = self._run_selection_phase(high_uncertainty_stream)
+
+        # Log stats after consumption (Note: gamma will be updated as stream is consumed)
+        # Since stream is consumed by selection phase, the value should be final here.
+        logger.info(f"Exploration max gamma: {max_gamma_container[0]:.2f}")
+
+        if not active_set_structures:
+             logger.warning("ActiveSet returned no structures. Calculation skipped.")
+             return []
+
+        return active_set_structures
+
+    def _run_exploration_stream(
+        self, seeds: list[StructureMetadata]
+    ) -> tuple[Iterator[StructureMetadata] | None, list[float]]:
+        """Run exploration and return a monitored stream."""
+        try:
+            high_uncertainty_iter = self.dynamics_engine.run_exploration(
+                self.current_potential, seeds  # type: ignore[arg-type]
+            )
+
+            # Check if we found anything without consuming the whole stream
+            try:
+                first_structure = next(high_uncertainty_iter)
+            except StopIteration:
+                return None, [0.0]
+
+            # Reconstruct iterator
+            high_uncertainty_stream = chain([first_structure], high_uncertainty_iter)
+
+            # Spy on the stream to calculate metrics (max gamma) without materializing list
+            max_gamma_container = [0.0]
+
+            def stats_spy(iterator: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
+                try:
+                    for s in iterator:
+                        if s.uncertainty_state and s.uncertainty_state.gamma_max:
+                            max_gamma_container[0] = max(
+                                max_gamma_container[0], s.uncertainty_state.gamma_max
+                            )
+                        yield s
+                except Exception:
+                    logger.exception("Error during exploration streaming")
+                    # Stop yielding on error, effectively truncating stream
+                    return
+
+            return stats_spy(high_uncertainty_stream), max_gamma_container
+
+        except Exception:
+            logger.exception("Failed to initialize exploration stream")
+            return None, [0.0]
+
+    def _run_selection_phase(
+        self, high_uncertainty_stream: Iterator[StructureMetadata]
+    ) -> Iterable[StructureMetadata] | None:
+        """Execute selection phase on the exploration stream."""
         n_local = self.config.orchestrator.n_local_candidates
 
         # Stream candidates generation
         candidates_iter = self.structure_generator.generate_batch_candidates(
-            high_uncertainty_stream_with_stats,
+            high_uncertainty_stream,
             n_candidates_per_seed=n_local,
             cycle=self.cycle_count,
         )
@@ -405,18 +543,30 @@ class Orchestrator(IOrchestrator):
         n_select = self.config.orchestrator.n_active_set_select
         active_set = self.trainer.select_active_set(candidates_iter, n_select=n_select)
 
-        # Log stats after consumption
-        self.logger.info(f"Exploration max gamma: {max_gamma:.2f}")
+        # Active set now returns path, structures might be None to prevent OOM
+        if active_set.dataset_path and active_set.dataset_path.exists():
+            def structure_loader() -> Iterator[StructureMetadata]:
+                if active_set.dataset_path:
+                    for atoms in self.dataset_manager.load_iter(active_set.dataset_path):
+                        yield atoms_to_metadata(atoms)
+
+            return structure_loader()
 
         if active_set.structures:
             return active_set.structures
 
-        self.logger.warning("ActiveSet returned no structure objects. Calculation skipped.")
-        return []
+        return None
 
-    def _run_calculation_phase(self, structures: list[StructureMetadata]) -> None:
+    def _run_calculation_phase(self, structures: Iterable[StructureMetadata]) -> None:
         """Execute calculation phase."""
-        self.logger.info(f"Phase: Calculation ({len(structures)} structures)")
-        # Stream processing: list -> compute_batch(iter) -> save (append)
+        logger.info("Phase: Calculation (Streaming)")
+        # Stream processing: iterable -> compute_batch(iter) -> save (append)
         new_data = self.oracle.compute_batch(structures)
-        self._save_dataset_stream(new_data)
+
+        save_metadata_stream(
+            self.dataset_manager,
+            new_data,
+            self.dataset_path,
+            mode="ab",
+            calculate_checksum=False
+        )

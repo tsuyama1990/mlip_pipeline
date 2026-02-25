@@ -2,7 +2,7 @@
 
 from abc import abstractmethod
 from collections.abc import Iterable, Iterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
@@ -13,6 +13,9 @@ from pyacemaker.domain_models.models import (
     Potential,
     StructureMetadata,
 )
+
+if TYPE_CHECKING:
+    from pyacemaker.oracle.dataset import DatasetManager
 
 
 class CycleResult(BaseModel):
@@ -29,6 +32,13 @@ class StructureGenerator(BaseModule):
     @abstractmethod
     def generate_initial_structures(self) -> Iterator[StructureMetadata]:
         """Generate initial structures for cold start."""
+        ...
+
+    @abstractmethod
+    def generate_direct_samples(
+        self, n_samples: int, objective: str = "maximize_entropy"
+    ) -> Iterator[StructureMetadata]:
+        """Generate structures using DIRECT sampling (or similar global optimization)."""
         ...
 
     @abstractmethod
@@ -66,14 +76,28 @@ class Oracle(BaseModule):
         ...
 
 
+class UncertaintyModel(BaseModule):
+    """Interface for models that can predict uncertainty."""
+
+    @abstractmethod
+    def compute_uncertainty(
+        self, structures: Iterable[StructureMetadata]
+    ) -> Iterator[StructureMetadata]:
+        """Compute uncertainty for a batch of structures."""
+        ...
+
+
 class Trainer(BaseModule):
     """Interface for Trainer (Pacemaker) module."""
+
+    dataset_manager: "DatasetManager"
 
     @abstractmethod
     def train(
         self,
         dataset: Iterable[StructureMetadata],
         initial_potential: Potential | None = None,
+        **kwargs: Any,
     ) -> Potential:
         """Train a potential using the provided dataset (Streaming)."""
         ...

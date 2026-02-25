@@ -1,12 +1,13 @@
 """Validator module implementation."""
 
 from collections.abc import Iterable
-from pathlib import Path
 
 from pyacemaker.core.base import Metrics, ModuleResult
 from pyacemaker.core.interfaces import Validator as ValidatorInterface
 from pyacemaker.domain_models.models import Potential, StructureMetadata
+from pyacemaker.domain_models.validator import ValidationResult
 from pyacemaker.validator.manager import ValidatorManager
+from pyacemaker.validator.report import ReportGenerator
 
 
 class MockValidator(ValidatorInterface):
@@ -18,8 +19,35 @@ class MockValidator(ValidatorInterface):
 
     def validate(self, potential: Potential, test_set: Iterable[StructureMetadata]) -> ModuleResult:
         """Validate potential."""
-        # Validate consumes the test_set stream
-        count = sum(1 for _ in test_set)
+        # Consumes the stream to count items
+        count = 0
+        for _ in test_set:
+            count += 1
+
+        # Generate Mock Report for UAT with populated metrics
+        output_dir = self.config.project.root_dir / "validation"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        report_path = output_dir / "validation_report.html"
+
+        metrics = {
+            "mock": 1.0,
+            "count": count,
+            "bulk_modulus": 100.0,
+            "C11": 200.0,
+            "C12": 100.0,
+            "C44": 100.0
+        }
+
+        dummy_result = ValidationResult(
+            passed=True,
+            metrics=metrics,
+            eos_stable=True,
+            phonon_stable=True,
+            elastic_stable=True,
+            artifacts={"mock_plot": "mock.png"}
+        )
+        ReportGenerator().generate(dummy_result, report_path)
+
         return ModuleResult(
             status="success",
             metrics=Metrics.model_validate({"mock": 1.0, "count": count}),
@@ -33,8 +61,6 @@ class Validator(ValidatorInterface):
     def run(self) -> ModuleResult:
         """Run the validator."""
         self.logger.info("Running Validator")
-        # In this context, run() is usually not called directly or needs args.
-        # Just return success.
         return ModuleResult(status="success")
 
     def validate(self, potential: Potential, test_set: Iterable[StructureMetadata]) -> ModuleResult:
@@ -46,34 +72,20 @@ class Validator(ValidatorInterface):
         min_e_pa = float("inf")
         count = 0
 
-        # We need to process the stream but maybe limit how many we scan for reference structure
-        # to avoid reading 1M items just to pick one.
-        # However, for RMSE we need all.
-        # For this specific method, let's assume we scan all but efficiently (O(1) memory).
-        # We can use islice to batch if we were doing batch calc, but here we do single pass.
-
-        # Ensure we don't accidentally materialize
-        iterator = iter(test_set)
-
-        # Optimization: Process in chunks if needed, but simple loop is memory-safe for Python iterators
-        # provided the objects are released.
-        # But we hold reference_structure.
-        # Let's limit the scan for reference structure to the first N items to be safe/fast?
-        # Requirement says "Validator... processes... as a stream".
-        # We'll stick to full scan for now as it is strictly O(1) memory (1 structure held).
-
-        for s in iterator:
+        # Optimization: We need ONE good reference structure (ground state) for physics checks.
+        # We iterate to find the minimum energy structure but avoid storing everything.
+        # This is O(N) scan with O(1) memory.
+        for s in test_set:
             count += 1
+            # Check if this structure is better than current best
             if s.features.get("atoms"):
                 atoms = s.features["atoms"]
-                # Select reference structure (lowest energy/atom)
                 if s.energy is not None and len(atoms) > 0:
                     e_pa = s.energy / len(atoms)
                     if e_pa < min_e_pa:
                         min_e_pa = e_pa
                         reference_structure = atoms
                 elif reference_structure is None:
-                    # Fallback to first structure seen if no better candidate yet
                     reference_structure = atoms
 
         if count == 0:
@@ -95,35 +107,16 @@ class Validator(ValidatorInterface):
         output_dir = self.config.project.root_dir / "validation"
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Run physics validation
-        # We need potential path. Potential object has path.
-        pot_path = Path(potential.path)
-
-        # We also need to calculate RMSE on test set.
-        # This requires running potential on test_set structures.
-        # Does Validator module run potential?
-        # Or does it assume energies/forces are already in test_set?
-        # Usually test_set has DFT energies/forces (ground truth).
-        # We need to compute predicted E/F using potential.
-        # We can use ASE calculator for that.
-
-        # But for now, let's focus on Physics Checks as per Cycle 06 requirements.
-        # I'll add placeholder for RMSE.
-
+        # Run physics validation on the best candidate
         validation_result = manager.validate(
-            potential_path=pot_path,
+            potential=potential,
             structure=reference_structure,
             output_dir=output_dir,
         )
 
         # Merge metrics
         metrics_dict = validation_result.metrics.copy()
-
-        # Calculate RMSE (placeholder)
-        # In real impl, we would iterate test_list, compute E_pred, compare with E_dft.
-        # We assume 0.0 for now to indicate "not calculated" rather than fake good values.
-        metrics_dict["rmse_energy"] = 0.0
-        metrics_dict["rmse_forces"] = 0.0
+        metrics_dict["count"] = count
 
         status = "success" if validation_result.passed else "failed"
 

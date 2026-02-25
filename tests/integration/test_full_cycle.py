@@ -56,10 +56,6 @@ class TestFullCycleIntegration:
             patch("pyacemaker.modules.trainer.PacemakerTrainer.train") as mock_train,
             patch("pyacemaker.modules.trainer.PacemakerTrainer.select_active_set") as mock_select,
             patch("pyacemaker.modules.dynamics_engine.MDInterface.run_md") as mock_run_md,
-            # We also need to ensure the random check passes to trigger run_md call effectively
-            # or just force run_exploration to yield something if we mocked run_exploration.
-            # But we are testing integration, so let's mock run_md.
-            # However, LAMMPSEngine.run_exploration has a random check.
             patch("pyacemaker.modules.dynamics_engine.secrets.SystemRandom") as mock_random,
         ):
             # Force random check to trigger halt logic in run_exploration loop
@@ -80,14 +76,22 @@ class TestFullCycleIntegration:
             mock_train.return_value = mock_potential
 
             mock_active_set = MagicMock()
-            mock_active_set.structures = [
-                StructureMetadata(features={"atoms": Atoms("Fe")}),
-                StructureMetadata(features={"atoms": Atoms("Fe")}),
-            ]
+            mock_active_set.structures = None
+            # Fix: Ensure dataset_path exists and is valid
+            active_set_path = tmp_path / "active_set.pckl.gzip"
+            # Create a dummy file for load_iter to find
+            # But Orchestrator.select_phase loads from dataset_path.
+            mock_active_set.dataset_path = active_set_path
 
             mock_select.return_value = mock_active_set
 
-            orchestrator = Orchestrator(config)
+            orchestrator = Orchestrator(config, base_dir=tmp_path)
+
+            # Pre-populate active_set file so orchestrator can load it
+            # We need to save something valid there
+            orchestrator.dataset_manager.save_iter(
+                [Atoms("Fe"), Atoms("Fe")], active_set_path, calculate_checksum=False
+            )
 
             # Inject MockOracle directly to ensure it behaves as expected
             orchestrator.oracle = MockOracle(config)
@@ -121,10 +125,13 @@ class TestFullCycleIntegration:
 
         with (
             patch("pyacemaker.modules.validator.Validator.validate") as mock_validate,
+            patch("pyacemaker.modules.validator.MockValidator.validate") as mock_mock_validate,
             patch("pyacemaker.modules.trainer.PacemakerTrainer.train") as mock_train,
         ):
-            # Simulate validation failure
-            mock_validate.return_value = MagicMock(status="failed", metrics={})
+            # Simulate validation failure on both to be safe
+            failure_result = MagicMock(status="failed", metrics={})
+            mock_validate.return_value = failure_result
+            mock_mock_validate.return_value = failure_result
 
             # Mock train must consume stream to populate validation set
             def consume_stream(dataset: Any, potential: Potential | None = None) -> Any:
@@ -134,14 +141,14 @@ class TestFullCycleIntegration:
 
             mock_train.side_effect = consume_stream
 
-            orchestrator = Orchestrator(config)
+            orchestrator = Orchestrator(config, base_dir=tmp_path)
             # Pre-populate dataset so training runs
             dataset_path = orchestrator.dataset_path
-            orchestrator.dataset_manager.save_iter(iter([Atoms("Fe")]), dataset_path)
+            orchestrator.dataset_manager.save_iter((Atoms("Fe") for _ in range(1)), dataset_path)
 
             result = orchestrator.run()
 
             # Should fail
-        assert result.status == "FAILED"
-        # Cycle count should be 1 (failed at cycle 1)
-        assert orchestrator.cycle_count == 1
+            assert result.status == "FAILED"
+            # Cycle count should be 1 (failed at cycle 1)
+            assert orchestrator.cycle_count == 1

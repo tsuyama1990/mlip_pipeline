@@ -38,8 +38,9 @@ def config(tmp_path: Path) -> PYACEMAKERConfig:
 
 
 def test_dft_oracle_update_structure_logic(config: PYACEMAKERConfig) -> None:
-    """Test the _update_structure_common method logic in isolation."""
-    oracle = DFTOracle(config)
+    """Test the update_structure_metadata method logic in isolation."""
+    from pyacemaker.core.utils import update_structure_metadata
+
     s1 = StructureMetadata(tags=["test"], features={"atoms": Atoms("H")})
 
     # mock result atoms
@@ -49,7 +50,7 @@ def test_dft_oracle_update_structure_logic(config: PYACEMAKERConfig) -> None:
     result_atoms.get_forces.return_value = np.array([[0.0, 0.0, 0.0]])
     result_atoms.get_stress.return_value = np.array([0.0] * 6)
 
-    oracle._update_structure_common(s1, result_atoms)
+    update_structure_metadata(s1, result_atoms)
 
     assert s1.status == StructureStatus.CALCULATED
     assert s1.energy == -13.6
@@ -79,14 +80,21 @@ def test_dft_oracle_compute_batch_flow(config: PYACEMAKERConfig) -> None:
     result_atoms.get_forces = MagicMock(return_value=np.array([[0.0, 0.0, 0.0]]))  # type: ignore[method-assign]
 
     # Mock DFTManager to return iterator
-    # Mock _update_structure_common to verify it is called
+    # Mock update_structure_metadata to verify it is called
+
+    def side_effect_update(s: StructureMetadata, atoms: Atoms | None) -> None:
+        if atoms:
+            s.status = StructureStatus.CALCULATED
+            s.energy = -10.0
+
     with (
         patch(
             "pyacemaker.modules.oracle.DFTManager.compute",
             return_value=result_atoms,
         ) as mock_compute,
-        patch.object(
-            oracle, "_update_structure_common", wraps=oracle._update_structure_common
+        patch(
+            "pyacemaker.modules.oracle.update_structure_metadata",
+            side_effect=side_effect_update
         ) as mock_update,
     ):
         results_iter = oracle.compute_batch(structures)
@@ -162,15 +170,15 @@ def test_mock_oracle_randomness(config: PYACEMAKERConfig) -> None:
 
 def test_dft_oracle_streaming_behavior(config: PYACEMAKERConfig) -> None:
     """Test that DFTOracle streams data (yields results incrementally)."""
-    # Reduce chunk size for test
-    config.oracle.dft.chunk_size = 2
+    # Reduce workers to control buffer size (buffer = workers * 2 = 2)
+    config.oracle.dft.max_workers = 1
+    config.oracle.dft.chunk_size = 2  # No longer used but kept for config validity
     oracle = DFTOracle(config)
 
     # Create a generator that yields structures
     def structure_generator() -> Iterator[StructureMetadata]:
-        # We yield 3 structures. Chunk size 2.
-        # Chunk 1: s_0, s_1. Chunk 2: s_2.
-        for i in range(3):
+        # Yield more structures to verify we don't process all of them
+        for i in range(10):
             yield StructureMetadata(tags=[f"test_{i}"], features={"atoms": Atoms("H")})
 
     # Mock DFTManager to return dummy atoms
@@ -180,33 +188,51 @@ def test_dft_oracle_streaming_behavior(config: PYACEMAKERConfig) -> None:
     dummy_atom.get_stress.return_value = np.array([0.0] * 6)
 
     # Use side_effect or return value
+    # We patch update_structure_metadata to prevent actual calculation status update failing due to mock mismatch
     with patch(
         "pyacemaker.modules.oracle.DFTManager.compute",
         return_value=dummy_atom,
-    ) as mock_compute:
+    ) as mock_compute, patch(
+        "pyacemaker.modules.oracle.update_structure_metadata"
+    ) as mock_update:
+        # We need update_structure_metadata to set status=CALCULATED manually if mocked out,
+        # or we verify calls. The original implementation sets s.status=CALCULATED inside update.
+        # Let's side effect the mock to set status.
+        def update_side_effect(s: StructureMetadata, a: Atoms | None) -> None:
+            s.status = StructureStatus.CALCULATED
+
+        mock_update.side_effect = update_side_effect
+
         results_iter = oracle.compute_batch(structure_generator())
 
-        # Consume 1st (Should process 1st chunk of 2)
+        # Initial check - nothing processed yet (generator not consumed)
+        assert mock_compute.call_count == 0
+
+        # Consume 1st item
         r1 = next(results_iter)
-        # Because we parallelize chunks, processing 1st chunk (size 2) calls compute 2 times immediately (submitted)
-
-        # Consume 2nd
-        r2 = next(results_iter)
-
-        # Check calls after first chunk fully consumed
-        # mock_compute should have been called for struct 0 and 1
-        assert mock_compute.call_count >= 2
         assert r1.status == StructureStatus.CALCULATED
+
+        # Consume 2nd item
+        r2 = next(results_iter)
         assert r2.status == StructureStatus.CALCULATED
 
-        # Consume 3rd (Second chunk, size 1)
+        # With sliding window and background workers, call count is at least 2
+        # but strictly less than 10 (proving streaming)
+        # Typically 2 or 3 depending on race conditions
+        assert mock_compute.call_count >= 2
+        assert mock_compute.call_count < 10
+
+        # Consume 3rd item
         r3 = next(results_iter)
-        assert mock_compute.call_count == 3
         assert r3.status == StructureStatus.CALCULATED
 
-        # Should be empty now
-        with pytest.raises(StopIteration):
-            next(results_iter)
+        # Verify we still haven't processed everything
+        assert mock_compute.call_count >= 3
+        assert mock_compute.call_count < 10
+
+        # We don't need to consume the rest. The test proves:
+        # 1. We get results (r1, r2, r3)
+        # 2. We don't submit all 10 tasks at once (call_count < 10)
 
 
 def test_oracle_validation(config: PYACEMAKERConfig) -> None:

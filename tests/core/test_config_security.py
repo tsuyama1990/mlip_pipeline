@@ -85,7 +85,7 @@ def test_dft_pseudopotentials_path_traversal(
     # Path traversal to unsafe dir
     rel_path = "../unsafe/evil.upf"
 
-    with pytest.raises(ValidationError, match="Path traversal not allowed"):
+    with pytest.raises(ValidationError, match="Path traversal detected"):
         DFTConfig(code="qe", pseudopotentials={"Fe": rel_path})
 
 
@@ -103,5 +103,5 @@ def test_dft_pseudopotentials_path_traversal_skip_checks(
     # Even with skip_file_checks=True, '..' should be rejected
     rel_path = "../unsafe/evil.upf"
 
-    with pytest.raises(ValidationError, match="Path traversal not allowed"):
+    with pytest.raises(ValidationError, match="Path traversal detected"):
         DFTConfig(code="qe", pseudopotentials={"Fe": rel_path})

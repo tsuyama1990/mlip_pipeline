@@ -12,7 +12,7 @@ max_config_size: 1048576
 # Dataset
 max_object_size: 134217728  # 128 MB
 default_buffer_size: 10485760  # 10 MB
-default_validation_buffer_size: 100
+default_validation_buffer_size: 1000
 
 # Orchestrator
 orchestrator:
@@ -26,6 +26,13 @@ orchestrator:
 
 # Structure Generator
 structure_strategy: "random"
+structure_initial_exploration: "m3gnet"
+structure_strain_range: 0.15
+structure_rattle_amplitude: 0.1
+structure_defect_density: 0.01
+structure_direct_oversample: 10
+structure_direct_batch_size: 100
+structure_direct_box_size: 10.0
 
 # Trainer
 trainer_potential: "pace"
@@ -35,12 +42,44 @@ trainer_basis_size: [15, 5]
 trainer_delta_learning: "zbl"
 trainer_max_epochs: 500
 trainer_batch_size: 100
+trainer_delta_baseline_suffix: "_baseline.yace"
+trainer_mock_potential_name: "mock_potential.yace"
+trainer_default_elements: ["Fe"]
+trainer_mock: false
+
+# MACE
+mace_model_path: "medium"
+mace_device: "cpu"
+mace_dtype: "float64"
+mace_batch_size: 32
+mace_mock: false
+mace_default_max_epochs: 50
+
+# Distillation Defaults
+distillation_enable: false
+step1_target_points: 100
+step1_objective: "maximize_entropy"
+step2_uncertainty_threshold: 0.8
+step2_dft_calculator: "VASP"
+step2_cycles: 3
+step2_n_select: 10
+step3_base_model: "MACE-MP-0"
+step3_epochs: 50
+step4_target_points: 1000
+step4_method: "mace_md"
+step7_enable: true
+step7_weight_dft: 10.0
 
 # Dynamics Engine
 engine: "lammps"
 dynamics_gamma_threshold: 10.0
 dynamics_halt_probability: 0.3
 dynamics_timestep: 0.001
+dynamics_temperature: 300.0
+dynamics_pressure: 0.0
+dynamics_n_steps: 100000
+dynamics_hybrid_baseline: "zbl"
+dynamics_mock: false
 dynamics_temp_damping: 0.1
 dynamics_templates:
   zbl:
@@ -59,8 +98,11 @@ dynamics_templates:
 validator_metrics:
   - "rmse_energy"
   - "rmse_forces"
+validator_test_ratio: 0.1
 
 # DFT / Oracle
+oracle_mock: false
+oracle_chunk_size: 100
 dft:
   code: "quantum_espresso"
   command: "mpirun -np 4 pw.x"
@@ -85,6 +127,58 @@ dft:
   conv_thr: 1.0e-6
   occupations: "smearing"
   smearing_method: "mv"
+  embedding_enabled: true
+  embedding_buffer: 2.0
+
+# EON Defaults
+dynamics_eon_executable: "eonclient"
+dynamics_eon_parameters: {}
+dynamics_eon_mock: false
+dynamics_eon_log_file: "eon.log"
+dynamics_eon_max_steps: 100000
+dynamics_eon_temperature: 300.0
+dynamics_eon_pressure: 0.0
+dynamics_eon_seed: 42
+dynamics_eon_output_dir: "eon_output"
+dynamics_eon_restart_file: "eon_restart.dat"
+dynamics_eon_checkpoint_interval: 1000
+dynamics_eon_max_restarts: 3
+dynamics_eon_max_failures: 5
+dynamics_eon_max_time: 3600.0
+dynamics_eon_max_memory: 8192
+dynamics_eon_max_disk: 1024
+dynamics_eon_max_network: 1024
+dynamics_eon_max_cpu: 4
+dynamics_eon_max_gpu: 0
+dynamics_eon_max_threads: 1
+dynamics_eon_max_processes: 1
+dynamics_eon_max_queues: 1
+dynamics_eon_max_jobs: 1
+dynamics_eon_max_tasks: 1
+dynamics_eon_max_workers: 1
+dynamics_eon_max_concurrent: 1
+dynamics_eon_max_parallel: 1
+dynamics_eon_max_batch: 1
+dynamics_eon_max_chunk: 1
+dynamics_eon_max_buffer: 1
+dynamics_eon_max_cache: 1
+dynamics_eon_max_memory_limit: 1024
+dynamics_eon_max_disk_limit: 1024
+dynamics_eon_max_network_limit: 1024
+dynamics_eon_max_cpu_limit: 4
+dynamics_eon_max_gpu_limit: 0
+dynamics_eon_max_threads_limit: 1
+dynamics_eon_max_processes_limit: 1
+dynamics_eon_max_queues_limit: 1
+dynamics_eon_max_jobs_limit: 1
+dynamics_eon_max_tasks_limit: 1
+dynamics_eon_max_workers_limit: 1
+dynamics_eon_max_concurrent_limit: 1
+dynamics_eon_max_parallel_limit: 1
+dynamics_eon_max_batch_limit: 1
+dynamics_eon_max_chunk_limit: 1
+dynamics_eon_max_buffer_limit: 1
+dynamics_eon_max_cache_limit: 1
 
 # Security Warnings
 pickle_security_warning: "SECURITY WARNING: pickle is unsafe. Do not load untrusted data. Ensure datasets are from trusted sources."
@@ -95,6 +189,8 @@ version_regex: "^\\d+\\.\\d+\\.\\d+$"
 valid_key_regex: '^[a-zA-Z0-9_\-\.]+$'
 # Strict Value Regex (Alphanumeric, path chars, basic punctuation, no shell metachars like ; | &)
 valid_value_regex: '^[a-zA-Z0-9_\-\./:, \(\)\[\]\{\}]+$'
+mace_param_key_regex: '^[a-zA-Z0-9_]+$'
+mace_param_value_regex: '^[a-zA-Z0-9_\-\.\/\:\+,=@]+$'
 
 # Temporary File Prefixes
 temp_prefix_train: "pace_train_"
@@ -113,3 +209,43 @@ physics_phonon_tolerance: -0.05
 physics_eos_strain: 0.05
 physics_eos_points: 5
 physics_elastic_strain: 0.01
+
+# File Names
+default_dataset_file: "dataset.pckl.gzip"
+default_validation_file: "validation_set.pckl.gzip"
+default_training_file: "training_set.pckl.gzip"
+default_candidates_file: "candidates.pckl.gzip"
+default_selected_file: "selected.pckl.gzip"
+dataset_extension: ".pckl.gzip"
+
+# Allowed Keys
+allowed_feature_keys:
+  - "atoms"
+  - "forces"
+  - "stress"
+  - "energy"
+  - "virial"
+  - "dipole"
+  - "magmom"
+  - "charges"
+  - "momenta"
+  - "masses"
+  - "numbers"
+  - "positions"
+  - "cell"
+  - "pbc"
+  - "initial_magmoms"
+  - "initial_charges"
+  - "uncertainty"
+  - "original_id"
+  - "source"
+
+allowed_potential_paths: []
+
+# Pacemaker specific defaults
+pacemaker_default_potential_filename: "potential.yace"
+pacemaker_default_embeddings:
+  Fe:
+    npot: "FinnisSinclair"
+    fs_parameters: [1, 1, 1, 1]
+    ndensity: 2

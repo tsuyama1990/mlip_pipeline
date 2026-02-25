@@ -55,7 +55,7 @@ def test_random_generator_initial(config: PYACEMAKERConfig) -> None:
     structures = list(structures_iter)
 
     assert isinstance(structures, list)
-    assert len(structures) == 5
+    assert len(structures) == 20
     assert isinstance(structures[0], StructureMetadata)
     assert structures[0].material_dna is not None
 

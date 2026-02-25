@@ -1,141 +1,88 @@
-"""User Acceptance Tests for Cycle 01."""
+"""UAT for Cycle 01."""
 
-import os
-import subprocess
-import sys
 from pathlib import Path
 
+import pytest
+from typer.testing import CliRunner
 
-def test_uat_cli_help() -> None:
-    """Scenario 01: CLI Health Check."""
-    env = {"PYTHONPATH": "src"}
-    env.update(os.environ)
+from pyacemaker.core.config import CONSTANTS
+from pyacemaker.main import app
 
-    # Force use of venv python to ensure deps are found
-    python_exe = (
-        "/app/.venv/bin/python3" if Path("/app/.venv/bin/python3").exists() else sys.executable
-    )
+# Bypass file checks for UAT as we don't have real pseudos
+CONSTANTS.skip_file_checks = True
 
-    # Running via -m fails to capture output with subprocess sometimes due to typer/rich interaction?
-    # Or maybe it's just how the test environment captures stdout.
-    # Using -c to invoke explicitly seems robust.
-
-    cmd = [
-        python_exe,
-        "-c",
-        "import sys; sys.argv=['pyacemaker', '--help']; from pyacemaker.main import app; app()",
-    ]
-
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        check=False,
-        env=env,
-    )
-    assert result.returncode == 0
-    combined = result.stdout + result.stderr
-    assert "Usage" in combined
+runner = CliRunner()
 
 
-def test_uat_valid_config(tmp_path: Path) -> None:
-    """Scenario 02: Valid Configuration Loading."""
-    # Ensure config matches schema (version required)
+@pytest.fixture
+def config_dir(tmp_path: Path) -> Path:
+    """Create a temporary directory for configs."""
+    d = tmp_path / "configs"
+    d.mkdir()
+    return d
+
+
+def test_scenario_01_valid_initialization(config_dir: Path) -> None:
+    """Scenario 01: Successful System Initialization (Mock Mode)."""
+    config_path = config_dir / "valid.yaml"
+    # Use a root_dir that is definitely safe and exists
+    root_dir = config_dir / "project_root"
+    root_dir.mkdir()
+
     config_content = f"""
-version: "0.1.0"
+version: "1.0.0"
 project:
-  name: "TestProject"
-  root_dir: "{tmp_path.resolve()}"
+  name: "Cycle01_UAT"
+  root_dir: "{root_dir}"
+logging:
+  level: "DEBUG"
 oracle:
-  dft:
-    code: "quantum_espresso"
-    pseudopotentials:
-      Fe: Fe.pbe.UPF
   mock: true
+  dft:
+    pseudopotentials:
+      Fe: "Fe.pbe.UPF"
+  mace:
+    model_path: "medium"
+    device: "cpu"
 trainer:
   mock: true
+dynamics_engine:
+  mock: true
 """
-    config_file = tmp_path / "valid_config.yaml"
-    config_file.write_text(config_content)
+    config_path.write_text(config_content)
 
-    # Need to set PYTHONPATH to include src
-    env = {"PYTHONPATH": "src"}
-    # Also skip file checks to avoid missing pseudopotential error
-    env["PYACEMAKER_SKIP_FILE_CHECKS"] = "true"
+    result = runner.invoke(app, ["run", str(config_path), "-v"])
 
-    env.update(os.environ)
-
-    # Use python -m pyacemaker.main instead of command alias to ensure imports work in test env
-    # without full install.
-    # Actually, pyacemaker command might not be found if not installed in editable mode or path.
-    # Safest is to run via python -m
-
-    # But wait, pyacemaker.main calls app(). We need to import it properly.
-    # The entry point is defined as pyacemaker = pyacemaker.main:app
-
-    # Let's try running as module
-    # Force use of venv python
-    python_exe = (
-        "/app/.venv/bin/python3" if Path("/app/.venv/bin/python3").exists() else sys.executable
-    )
-
-    cmd = [
-        python_exe,
-        "-c",
-        f"import sys; sys.argv=['pyacemaker', 'run', r'{config_file}']; from pyacemaker.main import app; app()",
-    ]
-
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        check=False,
-        env=env,
-    )
-
-    assert result.returncode == 0
-    assert (
-        "Configuration loaded successfully" in result.stdout
-        or "Configuration loaded successfully" in result.stderr
-    )
+    # Check exit code
+    assert result.exit_code == 0, f"Exit code {result.exit_code}. Output: {result.output}"
+    # Check output
+    assert "Configuration loaded successfully" in result.output
+    # MACE Oracle loaded message changed/or not printed in new flow if mocked differently
+    # Let's check for standard startup logs
+    assert "Starting Active Learning Pipeline" in result.output
 
 
-def test_uat_invalid_config(tmp_path: Path) -> None:
-    """Scenario 03: Invalid Configuration Handling."""
-    config_content = """
+def test_scenario_02_invalid_configuration(config_dir: Path) -> None:
+    """Scenario 02: Invalid Configuration Handling."""
+    config_path = config_dir / "invalid.yaml"
+    # Use a root_dir that is definitely safe
+    root_dir = config_dir / "project_root_invalid"
+    root_dir.mkdir()
+
+    config_content = f"""
+version: "1.0.0"
 project:
-  # Missing name
-  root_dir: "./"
+  name: "Cycle01_UAT_Invalid"
+  root_dir: "{root_dir}"
+oracle:
+  mock: true
+  # Missing 'dft' section which is required
 """
-    config_file = tmp_path / "invalid_config.yaml"
-    config_file.write_text(config_content)
+    config_path.write_text(config_content)
 
-    env = {"PYTHONPATH": "src"}
-    env.update(os.environ)
+    result = runner.invoke(app, ["run", str(config_path)])
 
-    # Force use of venv python
-    python_exe = (
-        "/app/.venv/bin/python3" if Path("/app/.venv/bin/python3").exists() else sys.executable
-    )
-
-    cmd = [
-        python_exe,
-        "-c",
-        f"import sys; sys.argv=['pyacemaker', 'run', r'{config_file}']; from pyacemaker.main import app; app()",
-    ]
-
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        check=False,
-        env=env,
-    )
-
-    assert result.returncode != 0
-    # Error message usually goes to stderr
-    assert (
-        "Field required" in result.stderr
-        or "Validation" in result.stderr
-        or "Error" in result.stderr
-    )
+    assert result.exit_code != 0
+    assert "Error: Invalid configuration" in result.output
+    # 'dft' field missing error
+    assert "Field required" in result.output or "dft" in result.output

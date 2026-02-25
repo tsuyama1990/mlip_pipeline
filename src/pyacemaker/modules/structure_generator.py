@@ -29,7 +29,18 @@ class RandomStructureGenerator(StructureGenerator):
     def generate_initial_structures(self) -> Iterator[StructureMetadata]:
         """Generate initial structures."""
         self.logger.info("Generating initial structures (mock)")
-        yield from generate_dummy_structures(5, tags=["initial", "random"])
+        yield from generate_dummy_structures(20, tags=["initial", "random"])
+
+    def generate_direct_samples(
+        self, n_samples: int, objective: str = "maximize_entropy"
+    ) -> Iterator[StructureMetadata]:
+        """Generate structures using DIRECT sampling (Mock)."""
+        self.logger.info(f"Generating {n_samples} DIRECT samples (Mock: {objective})")
+        # Ensure lazy generation
+        yield from generate_dummy_structures(
+            n_samples,
+            tags=["initial", "direct", f"objective:{objective}"],
+        )
 
     def _generate_candidates_common(
         self, n_candidates: int, tags: list[str]
@@ -66,7 +77,12 @@ class RandomStructureGenerator(StructureGenerator):
 
         self.logger.info(f"Generating batch candidates from seed structures (Cycle {cycle})")
 
-        for _ in seed_structures:
+        # Use itertools.chain to flatten the generator stream if needed,
+        # but yield from in a loop is already a generator.
+        # The key is that `seed_structures` is an iterable, and we process it lazily.
+        for _seed in seed_structures:
+            # We don't use seed in Random generator logic (mock), but we iterate to match count.
+            # In real logic, we would use seed.
             yield from self._generate_candidates_common(
                 n_candidates_per_seed, tags=["candidate", "batch"]
             )
@@ -118,6 +134,19 @@ class AdaptiveStructureGenerator(StructureGenerator):
             else:
                 # Fallback if no atoms object
                 yield proto
+
+    def generate_direct_samples(
+        self, n_samples: int, objective: str = "maximize_entropy"
+    ) -> Iterator[StructureMetadata]:
+        """Generate structures using DIRECT sampling."""
+        # For Adaptive, we can use the same logic as initial structures but with DIRECT specific tags/params
+        # In a real implementation, this would use a global optimizer on descriptors.
+        self.logger.info(f"Generating {n_samples} DIRECT samples (Adaptive Mock)")
+        # Reuse dummy generation for now as we lack descriptors lib
+        yield from generate_dummy_structures(
+            n_samples,
+            tags=["initial", "direct", "adaptive"],
+        )
 
     def generate_local_candidates(
         self, seed_structure: StructureMetadata, n_candidates: int, cycle: int = 1

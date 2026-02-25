@@ -1,102 +1,73 @@
-# Cycle 06 Specification: Validation & kMC Integration
+# Cycle 06 Specification: Optimization, UAT & Final Polish
 
 ## 1. Summary
-Cycle 06 focuses on the final critical components: Quality Assurance (Validation) and Long-Timescale Dynamics (Adaptive Kinetic Monte Carlo).
+Cycle 06 is the final quality assurance and refinement phase. Its primary goal is to ensure that the generated potential is not only numerically stable but also scientifically accurate. We will implement the **Validator** module to perform rigorous physical checks, such as phonon dispersion stability and Equation of State (EOS) curves.
 
-Key features:
-1.  **Physics Validation**: A comprehensive suite of tests to verify the physical correctness of the trained potential. This includes Phonon dispersion stability (no imaginary modes), Equation of State (EOS) curves, and Elastic Constants ($C_{ij}$).
-2.  **Adaptive kMC Integration**: Integration with the EON software to perform long-timescale simulations (diffusion, ripening) that are inaccessible to standard MD.
-3.  **Reporting**: Automatic generation of HTML validation reports with plots (Parity, Phonon bands, EOS) for user inspection.
+Additionally, we will consolidate the entire workflow into a comprehensive User Acceptance Test (UAT) and Tutorial script (`tutorials/UAT_AND_TUTORIAL.py`). This script will serve as the primary entry point for new users and the final verification step for the system. It must run seamlessly in both "Mock Mode" (for rapid CI feedback) and "Real Mode" (for actual scientific production).
 
 ## 2. System Architecture
 
-The file structure expands `src/pyacemaker/validator` and `src/pyacemaker/dynamics`. **Bold files** are new.
+The following file structure will be created or modified. **Bold** files are new or significantly modified.
 
 ```text
-src/
-└── pyacemaker/
-    ├── core/
-    │   └── **config.py**       # Updated with ValidatorConfig/EONConfig
-    ├── dynamics/
-    │   └── **kmc.py**          # EON Wrapper
-    └── **validator/**
-        ├── **__init__.py**
-        ├── **manager.py**      # Validation Orchestrator
-        ├── **physics.py**      # Physics Checks (Phonon, EOS, Elastic)
-        └── **report.py**       # HTML Report Generator
+src/pyacemaker/
+├── validator/
+│   ├── **__init__.py**
+│   ├── **base.py**           # BaseValidator Interface
+│   ├── **physics.py**        # Phonon & EOS Checks
+│   └── **report.py**         # HTML/Markdown Report Generator
+└── **tutorials/UAT_AND_TUTORIAL.py** # The Master Script
 ```
-
-### File Details
--   `src/pyacemaker/validator/manager.py`: The `Validator` class. It runs defined checks and aggregates results.
--   `src/pyacemaker/validator/physics.py`: Contains specific check logic using `phonopy` and `ase`.
--   `src/pyacemaker/validator/report.py`: Uses `jinja2` and `matplotlib` to create visual reports.
--   `src/pyacemaker/dynamics/kmc.py`: `EONWrapper` to configure and run EON client.
 
 ## 3. Design Architecture
 
-### 3.1. Validator Configuration
-```python
-class ValidatorConfig(BaseModel):
-    test_set_ratio: float = 0.1
-    phonon_supercell: List[int] = [2, 2, 2]
-    eos_strain: float = 0.1
-    elastic_strain: float = 0.01
-```
+### 3.1. Validator Module (`validator/physics.py`)
+-   **`PhysicsValidator`**: Implements `BaseValidator`.
+    -   **`check_eos(structure: StructureData, potential: Path) -> ValidationResult`**:
+        -   Calculates the Energy vs Volume curve.
+        -   Fits the Birch-Murnaghan equation of state.
+        -   **Criterion**: The bulk modulus should be positive and within physical range (e.g., 10-500 GPa).
+    -   **`check_phonons(structure: StructureData, potential: Path) -> ValidationResult`**:
+        -   Uses Phonopy (if available) to calculate phonon dispersion.
+        -   **Criterion**: No significant imaginary frequencies (unstable modes) for a known stable ground state.
+    -   **`check_elastic(structure: StructureData, potential: Path) -> ValidationResult`**:
+        -   Calculates elastic constants (C11, C12, C44).
+        -   **Criterion**: Born stability criteria for cubic systems.
 
-### 3.2. Validation Result
-```python
-class ValidationResult(BaseModel):
-    passed: bool
-    metrics: Dict[str, float]  # RMSE_E, RMSE_F
-    phonon_stable: bool
-    elastic_stable: bool
-    artifacts: List[Path]      # Paths to plots (png)
-```
+### 3.2. Validation Report (`validator/report.py`)
+-   **`ReportGenerator`**:
+    -   Compiles metrics from all steps (Active Learning, Training Loss, Validation Results).
+    -   Generates a simple `report.html` or `SUMMARY.md` for the user.
 
-### 3.3. EON Wrapper
-```python
-class EONWrapper:
-    def run_search(self, initial_state: Atoms, potential: Path):
-        # Generate EON config.ini
-        # Run eonclient
-        pass
-```
+### 3.3. Master Tutorial Script (`tutorials/UAT_AND_TUTORIAL.py`)
+-   A single, self-contained `marimo` notebook (or Python script) that:
+    1.  Sets up the environment.
+    2.  Defines the `config.yaml` for the SN2 Reaction scenario.
+    3.  Runs the full `Orchestrator` pipeline.
+    4.  Visualizes the results (Energy barrier, parity plots).
+    5.  Demonstrates how to use the final potential in a simple simulation.
 
 ## 4. Implementation Approach
 
-### Step 1: Update Configuration
--   Modify `src/pyacemaker/core/config.py` to add `ValidatorConfig` and `EONConfig`.
-
-### Step 2: Physics Validation
--   Implement `src/pyacemaker/validator/physics.py`.
--   **Phonon**: Use `phonopy.Phonopy` API. Calculate band structure. Check for $\omega^2 < -\epsilon$.
--   **EOS**: Use `ase.eos.EquationOfState`. Fit Birch-Murnaghan. Check Bulk Modulus.
--   **Elastic**: Apply small strains, compute stress, fit linear elasticity. Check Born stability criteria.
-
-### Step 3: Reporting
--   Implement `src/pyacemaker/validator/report.py`.
--   Create a Jinja2 template for the report.
--   Generate Matplotlib plots for EOS and Phonons.
-
-### Step 4: EON Integration
--   Implement `src/pyacemaker/dynamics/kmc.py`.
--   Create a helper script `pace_driver.py` that EON calls to get energy/forces from the `.yace` potential.
--   Implement the `run_search` method.
+1.  **Implement Validator**: Create `PhysicsValidator` in `validator/physics.py`.
+2.  **Implement Reporting**: Create `ReportGenerator` in `validator/report.py`.
+3.  **Create UAT Script**: Develop `tutorials/UAT_AND_TUTORIAL.py` using `marimo`.
+    -   Ensure it detects `CI` environment variable to switch to Mock Mode automatically.
+4.  **Final Polish**:
+    -   Run `ruff` and `mypy` on the entire codebase.
+    -   Add docstrings to all public methods.
+    -   Verify `README.md` instructions.
 
 ## 5. Test Strategy
 
 ### 5.1. Unit Testing
--   **Physics Logic (`tests/validator/test_physics.py`)**:
-    -   Mock `phonopy`.
-    -   Verify that imaginary frequencies trigger `phonon_stable=False`.
-    -   Verify that Born criteria logic is correct for cubic systems.
--   **EON Wrapper (`tests/dynamics/test_kmc.py`)**:
-    -   Mock `subprocess.run`.
-    -   Verify `config.ini` generation.
-    -   Verify `pace_driver.py` is created correctly.
+-   **Validator**: Feed a known bad potential (e.g., one that predicts negative bulk modulus) to `check_eos` and verify it fails validation.
+-   **Reporting**: Verify `report.html` is generated and contains the expected sections.
 
-### 5.2. Integration Testing
--   **Validation Pipeline (`tests/validator/test_manager.py`)**:
-    -   Mock Physics checks.
-    -   Run `Validator.validate(potential, test_set)`.
-    -   Verify that a `report.html` is generated.
+### 5.2. Integration Testing (The Final UAT)
+-   **Execution**: Run `tutorials/UAT_AND_TUTORIAL.py`.
+-   **Verification**:
+    -   The script should complete without error.
+    -   The final potential should be produced.
+    -   The validation report should be generated.
+    -   The SN2 reaction barrier should be reasonably close to the reference value (or at least physically plausible in Real Mode).

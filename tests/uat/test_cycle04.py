@@ -1,112 +1,159 @@
-"""UAT tests for Cycle 04."""
+"""UAT tests for Cycle 04 (Surrogate Labeling & Pacemaker Training)."""
 
-from typing import Any, cast
+from unittest.mock import MagicMock
 
-import numpy as np
 import pytest
-from ase.build import bulk
+from ase import Atoms
+from ase.calculators.singlepoint import SinglePointCalculator
 
-from pyacemaker.core.config import PYACEMAKERConfig
-from pyacemaker.generator.policy import AdaptivePolicy, ExplorationContext
-from pyacemaker.generator.strategies import DefectStrategy, M3GNetStrategy, RandomStrategy
+from pyacemaker.core.interfaces import Oracle, UncertaintyModel
+from pyacemaker.domain_models.models import (
+    Potential,
+    PotentialType,
+    StructureStatus,
+)
+from pyacemaker.modules.mace_workflow import MaceDistillationWorkflow
+from pyacemaker.oracle.dataset import DatasetManager
+
+
+class MockOracle(Oracle, UncertaintyModel):
+    def compute_batch(self, structures): pass
+    def compute_uncertainty(self, structures): pass
+    def run(self): pass
+    def update_model(self, path): pass
 
 
 @pytest.fixture
-def mock_config(mocker: Any) -> PYACEMAKERConfig:
-    """Mock configuration."""
-    config = mocker.Mock(spec=PYACEMAKERConfig)
-    config.structure_generator = mocker.Mock()
-    config.structure_generator.initial_exploration = "m3gnet"
-    config.structure_generator.strain_range = 0.1
-    config.structure_generator.rattle_amplitude = 0.1
-    config.structure_generator.defect_density = 0.01
-    return cast(PYACEMAKERConfig, config)
+def mock_config(tmp_path):
+    """Create a mock configuration."""
+    config = MagicMock()
+    config.project = MagicMock()
+    config.project.root_dir = tmp_path
+    config.version = "1.0.0"
+    config.distillation = MagicMock()
+    config.distillation.surrogate_dataset_file = "surrogate_dataset.pckl.gzip"
+    # Mock trainer config
+    config.trainer.mock = True
+    config.oracle.mock = True
+    return config
 
 
-def test_scenario_01_strain_rattle() -> None:
-    """Scenario 01: Verify Strain & Rattle Generation."""
-    # Given a perfect crystal structure
-    seed = bulk("Cu", "fcc", a=3.6)
+@pytest.fixture
+def mock_workflow(mock_config, tmp_path):
+    """Create a MaceDistillationWorkflow with mocked dependencies."""
+    dataset_manager = DatasetManager()
+    oracle = MagicMock(spec=MockOracle)
+    mace_oracle = MagicMock(spec=MockOracle) # Use MockOracle structure for mace_oracle too
+    trainer = MagicMock()
+    mace_trainer = MagicMock()
+    dynamics_engine = MagicMock()
+    structure_generator = MagicMock()
+    active_learner = MagicMock()
 
-    # When I request 10 random candidates with strain
-    strategy = RandomStrategy(strain_range=0.1, rattle_amplitude=0.1)
-    candidates = strategy.generate(seed, n_candidates=10)
-
-    # Then I should receive 10 structures with different cell volumes
-    assert len(candidates) == 10
-
-    volumes = [atoms.get_volume() for atoms in candidates]  # type: ignore[no-untyped-call]
-    seed_volume = seed.get_volume()  # type: ignore[no-untyped-call]
-
-    # Check that volumes vary within a reasonable range (30%)
-    # And are not all identical to seed
-    assert not all(np.isclose(v, seed_volume) for v in volumes)
-
-    # And the atomic positions should be perturbed
-    positions = [atoms.get_positions() for atoms in candidates]  # type: ignore[no-untyped-call]
-    seed_positions = seed.get_positions()  # type: ignore[no-untyped-call]
-    assert not all(np.allclose(p, seed_positions) for p in positions)
-
-
-def test_scenario_02_defect_introduction() -> None:
-    """Scenario 02: Verify Defect Introduction."""
-    # Given a supercell with 32 atoms
-    seed = bulk("Cu", "fcc", a=3.6, cubic=True) * (2, 2, 2)
-    assert len(seed) == 32
-
-    # When I request a structure with 1 vacancy
-    strategy = DefectStrategy(defect_density=0.01)  # Should target 1 vacancy for 32 atoms
-    candidates = strategy.generate(seed, n_candidates=1)
-
-    # Then I should receive a structure with 31 atoms
-    assert len(candidates) == 1
-    candidate = candidates[0]
-    assert len(candidate) == 31
-
-    # And the cell parameters should remain similar (or same if no relaxation)
-    assert np.allclose(candidate.cell, seed.cell)
+    return MaceDistillationWorkflow(
+        config=mock_config,
+        dataset_manager=dataset_manager,
+        dataset_path=tmp_path / "dataset.pckl.gzip",
+        oracle=oracle,
+        mace_oracle=mace_oracle,
+        trainer=trainer,
+        mace_trainer=mace_trainer,
+        dynamics_engine=dynamics_engine,
+        structure_generator=structure_generator,
+        validation_path=tmp_path / "validation.pckl.gzip",
+        training_path=tmp_path / "training.pckl.gzip",
+        active_learner=active_learner,
+    )
 
 
-def test_scenario_03_cold_start_mock(mocker: Any) -> None:
-    """Scenario 03: Verify Cold Start via M3GNet (Mock)."""
-    # Given the system is configured for M3GNet cold start
-    # When M3GNet is not available
-    # Then it should fallback gracefully
+def test_scenario_01_successful_batch_labeling(mock_workflow, tmp_path):
+    """Scenario 01: Successful Batch Labeling."""
+    # GIVEN a list of unlabeled structures (surrogate_candidates)
+    # Created as a file to simulate Step 4 output
+    surrogate_path = tmp_path / "surrogate_unlabeled.pckl.gzip"
 
-    seed = bulk("Cu", "fcc", a=3.6)
+    atoms_list = [Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]]) for _ in range(5)]
+    # Save using dataset manager
+    mock_workflow.dataset_manager.save_iter(iter(atoms_list), surrogate_path)
 
-    # Mock fallback strategy to verify it's called
-    mock_fallback = mocker.Mock(spec=RandomStrategy)
-    mock_fallback.generate.return_value = [seed.copy()]  # type: ignore[no-untyped-call]
+    # AND a fine-tuned MaceSurrogateOracle (mocked)
+    # We mock compute_batch to simulate labeling
+    def mock_compute_batch(stream):
+        for s in stream:
+            s.energy = -10.0
+            s.forces = [[0.0, 0.0, 0.0]] * len(s.features["atoms"])
+            s.status = StructureStatus.CALCULATED
+            yield s
 
-    strategy = M3GNetStrategy(fallback_strategy=mock_fallback)
+    mock_workflow.mace_oracle.compute_batch.side_effect = mock_compute_batch
 
-    candidates = strategy.generate(seed, n_candidates=1)
+    # WHEN the Orchestrator executes Step 5 (via workflow)
+    # We call the internal step method directly for UAT
+    dataset_path = mock_workflow.step5_surrogate_labeling(mock_workflow.config.distillation, surrogate_path)
 
-    # Verify fallback was used
-    mock_fallback.generate.assert_called_once()
-    assert len(candidates) == 1
+    # THEN it should run batch prediction on the structures
+    mock_workflow.mace_oracle.compute_batch.assert_called_once()
+
+    # AND it should save the labeled structures to surrogate_dataset.pckl.gzip
+    assert dataset_path.exists()
+    assert dataset_path.stat().st_size > 0  # Verify file is not empty
+    assert dataset_path.name == "surrogate_dataset.pckl.gzip"
+
+    # AND the dataset should contain valid energy and force values
+    loaded_data = list(mock_workflow.dataset_manager.load_iter(dataset_path))
+    assert len(loaded_data) == 5
+    for atoms in loaded_data:
+        assert atoms.info["energy"] == -10.0
+        assert len(atoms.get_forces()) == 2
 
 
-def test_scenario_04_adaptive_policy(mock_config: PYACEMAKERConfig) -> None:
-    """Scenario 04: Verify Adaptive Policy Logic."""
-    policy = AdaptivePolicy(mock_config)
+def test_scenario_02_base_ace_training(mock_workflow, tmp_path):
+    """Scenario 02: Base ACE Training."""
+    # GIVEN a surrogate_dataset.pckl.gzip
+    dataset_path = tmp_path / "surrogate_dataset.pckl.gzip"
+    atoms = Atoms("H", positions=[[0, 0, 0]])
+    # Attach results properly
+    atoms.calc = SinglePointCalculator(atoms, energy=-1.0, forces=[[0, 0, 0]])
+    atoms_list = [atoms]
+    mock_workflow.dataset_manager.save_iter(iter(atoms_list), dataset_path)
 
-    # Given the system is in Cycle 0 (Cold Start)
-    context_0 = ExplorationContext(cycle=0)
-    # When the policy engine decides on a strategy
-    strategy_0 = policy.decide_strategy(context_0)
-    # Then it should select the M3GNet strategy
-    assert isinstance(strategy_0, M3GNetStrategy)
+    # AND a PacemakerTrainer configuration (mocked in workflow init)
+    mock_workflow.trainer.train.return_value = Potential(
+        path=tmp_path / "potential.yace",
+        type=PotentialType.PACE,
+        version="1.0",
+        metrics={},
+        parameters={}
+    )
 
-    # Given the system detects high uncertainty in Cycle N
-    # (Mock uncertainty)
-    # When the policy engine decides on a strategy
-    # Then it should select a Cautious strategy
-    # (We can check if parameters are stricter or strategy type changes)
-    # For now assuming it returns RandomStrategy but configured cautiously
-    context_n = ExplorationContext(cycle=1)
-    strategy_n = policy.decide_strategy(context_n)
+    # WHEN the Orchestrator executes Step 6
+    potential = mock_workflow.step6_pacemaker_base_training(dataset_path)
 
-    assert isinstance(strategy_n, RandomStrategy)
-    # Check default parameters vs cautious if implemented
+    # THEN it should generate a valid input.yaml (Implied by Trainer.train logic)
+    # AND it should invoke the training process
+    mock_workflow.trainer.train.assert_called_once()
+
+    # AND it should produce a potential.yace file (returned object)
+    assert potential.path == tmp_path / "potential.yace"
+    assert potential.type == PotentialType.PACE
+
+
+def test_scenario_03_error_handling(mock_workflow, tmp_path):
+    """Scenario 03: Error Handling in Workflow."""
+    # GIVEN a workflow where MACE Oracle fails during Step 5
+    mock_workflow.mace_oracle.compute_batch.side_effect = Exception("Oracle failure")
+
+    # We mock earlier steps to return valid paths so we reach labeling/calculation
+    mock_workflow.step1_direct_sampling = MagicMock(return_value=tmp_path / "pool.pckl")
+    mock_workflow.step2_active_learning_loop = MagicMock(return_value=None)
+    mock_workflow.step4_surrogate_data_generation = MagicMock(return_value=tmp_path / "surrogate.pckl")
+
+    # Need to mock the file existence for step 5 to proceed to load stream
+    (tmp_path / "surrogate.pckl").touch()
+
+    # WHEN running the workflow
+    result = mock_workflow.run()
+
+    # THEN it should return a failure result
+    assert result.status == "failed"
+    assert "Oracle failure" in str(result.error)

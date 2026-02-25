@@ -48,12 +48,12 @@ def test_load_config_path_traversal() -> None:
     """Test path traversal detection in ProjectConfig."""
     from pyacemaker.core.config import ProjectConfig
 
-    # Direct traversal attempt
-    with pytest.raises(ValueError, match="Path traversal not allowed"):
+    # Direct traversal attempt - updated match string
+    with pytest.raises(ValueError, match="Path traversal detected"):
         ProjectConfig(name="test", root_dir=Path("../../../etc/passwd"))
 
     # Traversal in parts
-    with pytest.raises(ValueError, match="Path traversal not allowed"):
+    with pytest.raises(ValueError, match="Path traversal detected"):
         ProjectConfig(name="test", root_dir=Path("safe/../../unsafe"))
 
 

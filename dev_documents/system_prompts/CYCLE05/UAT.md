@@ -1,75 +1,46 @@
-# Cycle 05 UAT: Dynamics Engine & On-the-Fly Learning
+# Cycle 05 UAT: Delta Learning and Full Pipeline Orchestration
 
 ## 1. Test Scenarios
 
-### Scenario 01: Hybrid Potential Config Generation
-**Priority**: High
-**Description**: Verify that `potential.py` correctly generates LAMMPS commands for a hybrid potential (ACE + ZBL).
-**Steps**:
-1.  Create a python script `test_hybrid.py`.
-2.  Instantiate `DynamicsConfig` with `hybrid_baseline="zbl"`.
-3.  Generate LAMMPS commands for a structure (e.g., Fe-Pt).
-4.  Check for `pair_style hybrid/overlay pace zbl`.
-5.  Check for `pair_coeff * * pace ...` and `pair_coeff * * zbl ...`.
-**Expected Result**:
--   Output string matches expected LAMMPS syntax.
+### Scenario 01: Delta Learning Success
+-   **Priority**: Critical
+-   **Description**: Verify that the system can fine-tune the base potential with DFT data, effectively correcting the "Sim-to-Real gap".
+-   **Execution**:
+    1.  Provide a base `potential.yace` and a `dft_dataset.pckl`.
+    2.  Run Step 7 (Delta Learning) with `step7_pacemaker_finetune.weight_dft: 10.0`.
+    3.  Check output for "Delta Learning complete".
+    4.  Verify `final_potential.yace` is created.
+    5.  Load the potential and ensure it gives valid predictions (Mocked: just verify loading).
 
-### Scenario 02: Detect Halt via LAMMPS Log (Mock)
-**Priority**: Critical
-**Description**: Verify that `MDInterface` correctly identifies a halt event from a mocked LAMMPS run.
-**Steps**:
-1.  Create a python script `test_halt.py`.
-2.  Create a dummy `log.lammps` file containing `Fix halt condition met`.
-3.  Mock `subprocess.run` to return exit code 1 (or whatever `fix halt` produces).
-4.  Run `MDInterface.run()`.
-**Expected Result**:
--   Returns `HaltInfo(halted=True, step=1234, max_gamma=5.5)`.
-
-### Scenario 03: Extract Bad Structure from Dump
-**Priority**: High
-**Description**: Verify that `MDInterface` can read a dump file and return the last frame as `ase.Atoms`.
-**Steps**:
-1.  Create a python script `test_dump.py`.
-2.  Create a `dump.lammps` file with 2 frames.
-3.  Call `MDInterface.extract_bad_structure(dump_file)`.
-**Expected Result**:
--   Returns `ase.Atoms` corresponding to the 2nd frame.
--   Check positions/symbols match the dump file.
-
-### Scenario 04: Active Learning Loop Integration
-**Priority**: Critical
-**Description**: Verify that the `Orchestrator` correctly sequences the modules when a halt occurs.
-**Steps**:
-1.  Create a python script `test_orchestrator.py`.
-2.  Mock `Dynamics.run` to return `HaltInfo(halted=True)`.
-3.  Mock `Oracle.compute` and `Trainer.train`.
-4.  Run `Orchestrator.run_cycle()`.
-**Expected Result**:
--   `Oracle.compute` was called with the halted structure.
--   `Trainer.train` was called with the new dataset.
--   Current potential updated.
+### Scenario 02: Pipeline Idempotency (Crash Recovery)
+-   **Priority**: High
+-   **Description**: Verify that the system can resume from a failed or interrupted state without re-running completed steps.
+-   **Execution**:
+    1.  Start a full pipeline run.
+    2.  Manually stop the process (e.g., Ctrl+C) during Step 3.
+    3.  Verify `pipeline_state.json` shows `current_step: 3`.
+    4.  Restart the pipeline.
+    5.  Check output for "Skipping Step 1... Skipping Step 2... Resuming Step 3".
+    6.  Verify that the final output `final_potential.yace` is eventually produced.
 
 ## 2. Behavior Definitions (Gherkin)
 
-```gherkin
-Feature: Dynamics & On-the-Fly Learning
+### Feature: Full Workflow Execution
 
-  Scenario: Generate Hybrid Potential Commands
-    Given a Dynamics configuration with "zbl" baseline
-    When I request LAMMPS commands
-    Then the output should contain "pair_style hybrid/overlay pace zbl"
-    And the ZBL pair coefficients should be set correctly
+**Scenario: Execute full 7-step pipeline**
+  GIVEN a valid `config.yaml`
+  AND an empty workspace
+  WHEN the Orchestrator executes `run_all()`
+  THEN it should complete Steps 1 through 7 sequentially
+  AND it should produce intermediate artifacts (`dft_dataset`, `mace.model`, `potential.yace`)
+  AND it should produce the final artifact `final_potential.yace`
+  AND the final potential should pass basic validation checks (not empty)
 
-  Scenario: Detect Simulation Halt
-    Given a running MD simulation
-    When the extrapolation grade exceeds the threshold
-    Then the simulation should halt
-    And the system should report the halt step and max gamma
-
-  Scenario: Orchestrate Active Learning
-    Given a simulation that halted due to high uncertainty
-    When the Orchestrator processes the halt event
-    Then it should extract the bad structure
-    And send it to the Oracle for labeling
-    And retrain the potential with the new data
-```
+**Scenario: Resume from interruption**
+  GIVEN a workspace with a `pipeline_state.json` indicating Step 3 is incomplete
+  WHEN the Orchestrator executes `run_all()`
+  THEN it should load the state
+  AND it should verify the existence of artifacts from Steps 1 and 2
+  AND it should skip Steps 1 and 2
+  AND it should start execution from Step 3
+  AND it should complete the remaining steps

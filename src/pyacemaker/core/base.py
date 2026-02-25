@@ -30,6 +30,7 @@ class ModuleResult(BaseModel):
     artifacts: dict[str, str] = Field(
         default_factory=dict, description="Paths to generated artifacts"
     )
+    error: str | None = Field(default=None, description="Error message if execution failed")
 
 
 class BaseModule(ABC):

@@ -5,6 +5,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from pyacemaker.core.validation import validate_safe_path
+
 
 class PacemakerWrapper:
     """Wrapper for Pacemaker CLI commands."""
@@ -15,20 +17,22 @@ class PacemakerWrapper:
             msg = f"Dataset path does not exist: {dataset_path}"
             raise FileNotFoundError(msg)
 
+        # Validate safety
+        validate_safe_path(dataset_path)
+        validate_safe_path(output_dir)
+
         if not output_dir.exists():
             output_dir.mkdir(parents=True, exist_ok=True)
 
-    def _is_safe_string(self, value: str) -> bool:
-        """Check if string contains only safe characters (alphanumeric, -, _, ., /, :, =, @)."""
-        # Strict whitelist pattern: only allow characters commonly used in file paths and options
-        # A-Z, a-z, 0-9, dash, underscore, dot, forward slash, colon, equals, at
-        pattern = r"^[a-zA-Z0-9\-\_\.\/\:\=\@]+$"
-        return bool(re.match(pattern, value))
-
     def _sanitize_arg(self, key: str, value: Any) -> list[str]:
-        """Sanitize and format a single argument."""
-        # Basic sanitization: keys should be simple strings (alphanumeric + underscore)
-        if not key.replace("_", "").isalnum():
+        """Format a single argument.
+
+        Relies on subprocess.run(shell=False) for safety of values.
+        Validates keys to ensure they are simple flags.
+        Checks values for control characters to prevent command injection exploits.
+        """
+        # Validate key (flags) to be safe (alphanumeric/underscore/hyphen only)
+        if not re.match(r"^[a-zA-Z0-9_\-]+$", key):
             msg = f"Invalid parameter key: {key}"
             raise ValueError(msg)
 
@@ -40,35 +44,18 @@ class PacemakerWrapper:
         if isinstance(value, tuple | list):
             args = [cli_arg]
             for item in value:
-                item_str = str(item)
-                # Whitelist validation first
-                if not self._is_safe_string(item_str):
-                    # If strictly safe check fails, we could potentially rely on shlex.quote
-                    # But for strict security per audit, we should REJECT unless it's known safe.
-                    # Or we can allow broader chars but FORCE quote.
-                    # However, pace_train might not parse quoted args if passed via subprocess list.
-                    # Subprocess list arguments are NOT shell expanded, so injection is harder.
-                    # But if the called program (pacemaker) invokes a shell internally, it matters.
-                    # Given the audit requirement "whitelist approach", we stick to rejection.
-                    msg = f"Invalid list item value: {item}. Must match whitelist pattern."
-                    raise ValueError(msg)
-
-                # Double safety: quote it just in case, though subprocess handles args safely usually.
-                # Actually, adding quotes manually in a subprocess list argument results in the
-                # quotes being passed literally to the program, which is usually WRONG.
-                # Example: ['ls', "'file'"] looks for a file named "'file'" (with quotes).
-                # shlex.quote is useful if we were constructing a shell string.
-                # Since we use shell=False (default) in subprocess.run([args]), injection is mostly mitigated.
-                # The "command injection" concern usually implies shell=True usage or insecure inner calls.
-                # We will enforce whitelist strictly.
-                args.append(item_str)
+                val_str = str(item)
+                # Check for control characters
+                if re.search(r"[\x00-\x1f]", val_str):
+                     msg = f"Invalid control characters in parameter value: {val_str!r}"
+                     raise ValueError(msg)
+                args.append(val_str)
             return args
 
-        # Sanitize scalar value
         val_str = str(value)
-        if not self._is_safe_string(val_str):
-            msg = f"Potential unsafe value or command injection detected in: {val_str}. Must match whitelist pattern."
-            raise ValueError(msg)
+        if re.search(r"[\x00-\x1f]", val_str):
+             msg = f"Invalid control characters in parameter value: {val_str!r}"
+             raise ValueError(msg)
 
         return [cli_arg, val_str]
 
@@ -91,6 +78,11 @@ class PacemakerWrapper:
             Path to the trained potential file.
 
         """
+        validate_safe_path(dataset_path)
+        validate_safe_path(output_dir)
+        if initial_potential:
+            validate_safe_path(initial_potential)
+
         self._validate_paths(dataset_path, output_dir)
 
         cmd = ["pace_train"]
@@ -110,10 +102,65 @@ class PacemakerWrapper:
         # Capture output for logging/debugging
         # We rely on subprocess raising CalledProcessError on failure (check=True)
         # S603 ignored because we are constructing the list securely
-        subprocess.run(cmd, check=True, capture_output=True, text=True)  # noqa: S603
+        subprocess.run(
+            cmd, check=True, capture_output=True, text=True, shell=False
+        )
 
         # Return the path to the generated potential
         return output_dir / "output_potential.yace"
+
+    def train_from_input(
+        self,
+        input_file: Path,
+        output_dir: Path,
+        initial_potential: Path | None = None
+    ) -> Path:
+        """Run pace_train with input.yaml.
+
+        Args:
+            input_file: Path to input.yaml
+            output_dir: Output directory (where potential.yace is expected to be)
+            initial_potential: Optional initial potential for fine-tuning
+
+        Returns:
+            Path to the trained potential file.
+        """
+        validate_safe_path(input_file)
+        validate_safe_path(output_dir)
+        if initial_potential:
+            validate_safe_path(initial_potential)
+
+        if not input_file.exists():
+            msg = f"Input file does not exist: {input_file}"
+            raise FileNotFoundError(msg)
+
+        if not output_dir.exists():
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+        cmd = ["pace_train", str(input_file)]
+
+        if initial_potential:
+            if not initial_potential.exists():
+                msg = f"Initial potential path does not exist: {initial_potential}"
+                raise FileNotFoundError(msg)
+            cmd.extend(["--initial-potential", str(initial_potential)])
+
+        log_path = output_dir / "pace_train.log"
+        with log_path.open("w") as log_file:
+            # S603 ignored because we are constructing the list securely
+            # Use cwd=output_dir to ensure relative paths in input.yaml (like output filenames) resolve correctly
+            # Redirect output to file to avoid OOM
+            subprocess.run(
+                cmd,
+                check=True,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                cwd=output_dir,
+                shell=False,
+            )
+
+        # Return the path to the generated potential
+        return output_dir / "potential.yace"
 
     def select_active_set(self, candidates_path: Path, num_select: int, output_path: Path) -> Path:
         """Run pace_activeset command.
@@ -128,6 +175,9 @@ class PacemakerWrapper:
 
         """
         # Validate inputs strictly even here
+        validate_safe_path(candidates_path)
+        validate_safe_path(output_path)
+
         if not candidates_path.exists():
             msg = f"Candidates path does not exist: {candidates_path}"
             raise FileNotFoundError(msg)
@@ -142,6 +192,8 @@ class PacemakerWrapper:
         cmd.extend(["--select", str(num_select)])
         cmd.extend(["--output", str(output_path)])
 
-        subprocess.run(cmd, check=True, capture_output=True, text=True)  # noqa: S603
+        subprocess.run(
+            cmd, check=True, capture_output=True, text=True, shell=False
+        )
 
         return output_path
