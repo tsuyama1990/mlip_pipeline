@@ -57,6 +57,11 @@ mace_default_max_epochs: 50
 
 # Distillation Defaults
 distillation_enable: false
+distillation:
+  pool_file: "pool.xyz"
+  surrogate_file: "surrogate.xyz"
+  surrogate_dataset_file: "surrogate_dataset.xyz"
+
 step1_target_points: 100
 step1_objective: "maximize_entropy"
 step2_uncertainty_threshold: 0.8

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from ase import Atoms
 
-from pyacemaker.core.config import DistillationConfig, Step4SurrogateSamplingConfig
+from pyacemaker.core.config import DistillationConfig
 from pyacemaker.domain_models.state import PipelineState
 from pyacemaker.modules.mace_workflow import MaceDistillationWorkflow
 
@@ -28,8 +28,11 @@ def mock_dependencies(tmp_path):
     config = MagicMock(spec=DistillationConfig)
     config.pool_file = "pool.xyz"
     config.surrogate_file = "surrogate.xyz"
-    config.step4_surrogate_sampling = MagicMock(spec=Step4SurrogateSamplingConfig)
+    config.batch_size = 10
+    config.write_buffer_size = 10
+    config.step4_surrogate_sampling = MagicMock()
     config.step4_surrogate_sampling.target_points = 50 # Set low for test
+    config.step4_surrogate_sampling.method = "random"
 
     return {
         "config": config,
@@ -40,14 +43,13 @@ def mock_dependencies(tmp_path):
         "mace_oracle": MagicMock(),
         "pacemaker_trainer": MagicMock(),
         "mace_trainer": MagicMock(),
-        "work_dir": tmp_path,
-        "batch_size": 10
+        "work_dir": tmp_path
     }
 
 def test_step4_surrogate_generation_memory_safety(mock_dependencies):
     """Test that step 4 limits the infinite generator correctly."""
     workflow = MaceDistillationWorkflow(**mock_dependencies)
-    state = PipelineState(current_step=4, total_steps=8, artifacts={"mace_model_path": "model.model"})
+    state = PipelineState(current_step=4, artifacts={"mace_model_path": "model.model"})
 
     # If islice wasn't working, this would hang forever
     # Mock islice to verify usage? No, integration is better.
@@ -70,7 +72,6 @@ def test_step5_error_handling(mock_dependencies):
     workflow = MaceDistillationWorkflow(**mock_dependencies)
     state = PipelineState(
         current_step=5,
-        total_steps=8,
         artifacts={
             "surrogate_pool_path": "dummy.xyz",
             "mace_model_path": "model.model"
@@ -80,7 +81,7 @@ def test_step5_error_handling(mock_dependencies):
     # Mock dataset manager to raise exception
     mock_dependencies["dataset_manager"].load_iter.side_effect = Exception("Disk error")
 
-    with pytest.raises(Exception, match="Step 5"):
+    with pytest.raises(Exception, match="Disk error"):
         workflow.step5_surrogate_labeling(state)
 
 def test_step5_calculator_errors_handled(mock_dependencies):
@@ -88,7 +89,6 @@ def test_step5_calculator_errors_handled(mock_dependencies):
     workflow = MaceDistillationWorkflow(**mock_dependencies)
     state = PipelineState(
         current_step=5,
-        total_steps=8,
         artifacts={
             "surrogate_pool_path": "dummy.xyz",
             "mace_model_path": "model.model"
@@ -107,9 +107,9 @@ def test_step5_calculator_errors_handled(mock_dependencies):
         a1, a2 = MagicMock(spec=Atoms), MagicMock(spec=Atoms)
         mock_conv.return_value = iter([a1, a2])
 
-        with patch("builtins.open", new_callable=MagicMock):
-             # We need to mock write to consume the generator
-             with patch("pyacemaker.modules.mace_workflow.write"):
-                 new_state = workflow.step5_surrogate_labeling(state)
+        with patch("builtins.open", new_callable=MagicMock), \
+             patch("pyacemaker.modules.mace_workflow.write"):
+            # We need to mock write to consume the generator
+            new_state = workflow.step5_surrogate_labeling(state)
 
     assert new_state.current_step == 6

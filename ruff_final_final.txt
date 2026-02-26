@@ -1,0 +1,41 @@
+warning: The following rules have been removed and ignoring them has no effect:
+    - ANN101
+
+F841 Local variable `dynamics_engine` is assigned to but never used
+  --> tests/uat/test_cycle04.py:49:5
+   |
+47 |     trainer = MagicMock()
+48 |     mace_trainer = MagicMock()
+49 |     dynamics_engine = MagicMock()
+   |     ^^^^^^^^^^^^^^^
+50 |     structure_generator = MagicMock()
+51 |     active_learner = MagicMock()
+   |
+help: Remove assignment to unused variable `dynamics_engine`
+
+F841 Local variable `workflow` is assigned to but never used
+  --> tests/unit/test_mace_workflow_error_handling.py:95:5
+   |
+93 |     mock_dyn.run_exploration.return_value = iter([])
+94 |
+95 |     workflow = MaceDistillationWorkflow(
+   |     ^^^^^^^^
+96 |         config=mock_config.distillation,
+97 |         dataset_manager=dataset_manager,
+   |
+help: Remove assignment to unused variable `workflow`
+
+F841 Local variable `state` is assigned to but never used
+   --> tests/unit/test_mace_workflow_error_handling.py:115:5
+    |
+113 |     # If we want to test "oracle failure recovery" in Step 2 (AL loop), we should call step2.
+114 |     from pyacemaker.domain_models.state import PipelineState
+115 |     state = PipelineState(current_step=2, artifacts={"pool_path": pool_path})
+    |     ^^^^^
+116 |
+117 |     # But wait, MaceDistillationWorkflow delegates to ActiveLearner for Step 2.
+    |
+help: Remove assignment to unused variable `state`
+
+Found 3 errors.
+No fixes available (3 hidden fixes can be enabled with the `--unsafe-fixes` option).

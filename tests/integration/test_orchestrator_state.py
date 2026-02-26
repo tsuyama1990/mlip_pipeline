@@ -1,5 +1,6 @@
 """Integration tests for Orchestrator state management."""
 
+import contextlib
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -31,8 +32,9 @@ def orchestrator(mock_config):
     """Create an Orchestrator instance."""
     # Mock dependencies
     with patch("pyacemaker.orchestrator.ModuleFactory"):
-        orch = Orchestrator(
+        return Orchestrator(
             config=mock_config,
+            base_dir=mock_config.project.root_dir,
             structure_generator=MagicMock(),
             oracle=MagicMock(),
             trainer=MagicMock(),
@@ -42,7 +44,6 @@ def orchestrator(mock_config):
             mace_oracle=MagicMock(),
             active_learner=MagicMock(),
         )
-    return orch
 
 
 def test_state_persistence(orchestrator, tmp_path):
@@ -124,10 +125,8 @@ def test_state_updates_on_step_completion(orchestrator, tmp_path):
         # Mock failure at Step 2 to stop execution there
         workflow_instance.step2_active_learning_loop.side_effect = RuntimeError("Stop here")
 
-        try:
+        with contextlib.suppress(RuntimeError):
             orchestrator.run()
-        except RuntimeError:
-            pass
 
         # Verify state file exists
         assert state_file.exists()

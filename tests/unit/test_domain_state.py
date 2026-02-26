@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from pyacemaker.domain_models.state import PipelineState
 
 
-def test_pipeline_state_creation():
+def test_pipeline_state_creation() -> None:
     """Test valid PipelineState creation."""
     state = PipelineState(
         current_step=1,
@@ -20,7 +20,7 @@ def test_pipeline_state_creation():
     assert state.artifacts == {}
 
 
-def test_pipeline_state_validation():
+def test_pipeline_state_validation() -> None:
     """Test PipelineState validation constraints."""
     # Test valid steps
     for i in range(1, 9): # 1-8 allowed
@@ -34,7 +34,7 @@ def test_pipeline_state_validation():
         PipelineState(current_step=9)
 
 
-def test_pipeline_state_defaults():
+def test_pipeline_state_defaults() -> None:
     """Test default values."""
     state = PipelineState(current_step=1)
     assert state.completed_steps == []
@@ -42,9 +42,9 @@ def test_pipeline_state_defaults():
     assert state.metadata == {}
 
 
-def test_pipeline_state_artifacts_path():
+def test_pipeline_state_artifacts_path() -> None:
     """Test artifacts store Path objects correctly."""
-    path = Path("/tmp/test.txt")
+    path = Path("test.txt")
     state = PipelineState(
         current_step=1,
         artifacts={"dataset": path}
@@ -53,7 +53,7 @@ def test_pipeline_state_artifacts_path():
     assert state.artifacts["dataset"] == path
 
 
-def test_pipeline_state_serialization():
+def test_pipeline_state_serialization() -> None:
     """Test JSON serialization and deserialization."""
     state = PipelineState(
         current_step=3,
@@ -74,7 +74,7 @@ def test_pipeline_state_serialization():
     assert loaded.metadata["iteration"] == 5
 
 
-def test_pipeline_state_extra_forbid():
+def test_pipeline_state_extra_forbid() -> None:
     """Test that extra fields are forbidden."""
     with pytest.raises(ValidationError) as excinfo:
         PipelineState(current_step=1, extra_field="bad")

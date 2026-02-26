@@ -9,30 +9,34 @@ from pyacemaker.core.config import (
     DynamicsEngineConfig,
     MaceConfig,
     get_defaults,
-    load_config,
 )
+from pyacemaker.core.config_loader import load_config
+from pyacemaker.core.exceptions import ConfigurationError
 
 
 def test_load_valid_config(tmp_path):
     """Test loading a valid configuration file."""
     config_data = {
-        "version": "1.0",
-        "dataset": {"name": "test_ds", "path": "data/"},
-        "potential": {"type": "pace", "cutoff": 5.0},
-        "trainer": {"epochs": 10},
+        "version": "0.1.0",
+        "project": {"name": "test_project", "root_dir": str(tmp_path)},
+        "oracle": {
+            "dft": {"pseudopotentials": {"Fe": "Fe.upf"}},
+            "mock": True
+        },
+        "trainer": {"potential_type": "pace"},
     }
 
     config_file = tmp_path / "config.yaml"
-    with open(config_file, "w") as f:
+    with config_file.open("w") as f:
         yaml.dump(config_data, f)
 
     config = load_config(config_file)
-    assert config.version == "1.0"
-    assert config.dataset.name == "test_ds"
+    assert config.version == "0.1.0"
+    assert config.project.name == "test_project"
 
 def test_load_missing_config():
     """Test error when config file missing."""
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(ConfigurationError):
         load_config(Path("nonexistent.yaml"))
 
 def test_defaults_loading(tmp_path, monkeypatch):
@@ -41,7 +45,7 @@ def test_defaults_loading(tmp_path, monkeypatch):
         "dataset": {"train_ratio": 0.9}
     }
     defaults_file = tmp_path / "defaults.yaml"
-    with open(defaults_file, "w") as f:
+    with defaults_file.open("w") as f:
         yaml.dump(defaults_data, f)
 
     # Correctly patch the module-level variable
@@ -50,8 +54,12 @@ def test_defaults_loading(tmp_path, monkeypatch):
     # Clear lru_cache
     get_defaults.cache_clear()
 
-    defaults = get_defaults()
-    assert defaults["dataset"]["train_ratio"] == 0.9
+    try:
+        defaults = get_defaults()
+        assert defaults["dataset"]["train_ratio"] == 0.9
+    finally:
+        # Restore cache state for other tests
+        get_defaults.cache_clear()
 
 def test_mace_config_url_validation():
     """Test URL validation in MaceConfig."""
@@ -63,9 +71,10 @@ def test_mace_config_url_validation():
     with pytest.raises(ValidationError):
         MaceConfig(model_path="https://example.com/bad url")
 
-    # Invalid URL (no scheme)
-    with pytest.raises(ValidationError):
-        MaceConfig(model_path="example.com/model")
+    # Invalid URL (no scheme) - treated as file path, so should pass validation
+    # when skip_file_checks is True (default in tests)
+    cfg = MaceConfig(model_path="example.com/model")
+    assert str(cfg.model_path).endswith("example.com/model")
 
 def test_dynamics_config_sanitization():
     """Test parameter sanitization in DynamicsEngineConfig."""

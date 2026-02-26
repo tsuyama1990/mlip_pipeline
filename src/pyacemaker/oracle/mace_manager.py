@@ -264,8 +264,13 @@ class MaceManager:
 
         try:
             with log_path.open("w") as log_file:
-                subprocess.run(
-                    cmd, check=True, cwd=work_dir, stdout=log_file, stderr=subprocess.STDOUT, shell=False
+                subprocess.run(  # noqa: S603
+                    cmd,
+                    check=True,
+                    cwd=work_dir,
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    shell=False,
                 )
         except subprocess.CalledProcessError as e:
             self._handle_subprocess_error(e, log_path)

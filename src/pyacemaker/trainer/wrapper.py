@@ -102,7 +102,7 @@ class PacemakerWrapper:
         # Capture output for logging/debugging
         # We rely on subprocess raising CalledProcessError on failure (check=True)
         # S603 ignored because we are constructing the list securely
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             cmd, check=True, capture_output=True, text=True, shell=False
         )
 
@@ -150,7 +150,7 @@ class PacemakerWrapper:
             # S603 ignored because we are constructing the list securely
             # Use cwd=output_dir to ensure relative paths in input.yaml (like output filenames) resolve correctly
             # Redirect output to file to avoid OOM
-            subprocess.run(
+            subprocess.run(  # noqa: S603
                 cmd,
                 check=True,
                 stdout=log_file,
@@ -192,7 +192,7 @@ class PacemakerWrapper:
         cmd.extend(["--select", str(num_select)])
         cmd.extend(["--output", str(output_path)])
 
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             cmd, check=True, capture_output=True, text=True, shell=False
         )
 

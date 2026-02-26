@@ -1,4 +1,5 @@
 """Test security constraints in PacemakerWrapper."""
+import contextlib
 from pathlib import Path
 from unittest.mock import patch
 
@@ -28,7 +29,7 @@ def test_validate_safe_path_security(tmp_path):
 
         # Exception message can vary depending on implementation (outside base or traversal detected)
         # We just want to ensure it raises ValueError
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Path traversal detected"):
             validate_safe_path(malicious)
 
 
@@ -42,11 +43,11 @@ def test_validate_safe_path_whitelist(tmp_path):
     # We can't easily modify the instance in-place if it's immutable/validated frozen.
     # However, in tests we can patch CONSTANTS.allowed_potential_paths
 
-    with patch.object(CONSTANTS, 'allowed_potential_paths', [str(allowed_dir)]):
+    with patch.object(CONSTANTS, 'allowed_potential_paths', [str(allowed_dir)]), \
+         patch("pathlib.Path.cwd", return_value=tmp_path / "other"):
         # Even if CWD is somewhere else
-        with patch("pathlib.Path.cwd", return_value=tmp_path / "other"):
-            # This path is outside "other" but inside allowed whitelist
-            validate_safe_path(allowed_dir)
+        # This path is outside "other" but inside allowed whitelist
+        validate_safe_path(allowed_dir)
 
 
 def test_command_injection_prevention():
@@ -62,13 +63,11 @@ def test_command_injection_prevention():
         work_dir = Path("work_dir")
 
         # Mock existence checks since we are testing command construction
-        with patch("pathlib.Path.exists", return_value=True):
-             # Also mock validation to pass for this test (we test validation separately)
-             with patch("pyacemaker.trainer.wrapper.validate_safe_path"):
-                try:
-                    wrapper.train_from_input(input_path, work_dir)
-                except Exception:
-                    pass
+        with patch("pathlib.Path.exists", return_value=True), \
+             patch("pyacemaker.trainer.wrapper.validate_safe_path"), \
+             contextlib.suppress(Exception):
+            # Also mock validation to pass for this test (we test validation separately)
+            wrapper.train_from_input(input_path, work_dir)
 
         # Check that subprocess was called with a list, not string
         if mock_run.called:
