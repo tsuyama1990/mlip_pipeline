@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -28,8 +28,7 @@ def mock_config() -> MagicMock:
 def mock_dataset_manager(tmp_path: Path) -> Any:
     # Use real DatasetManager with a temp file
     from pyacemaker.oracle.dataset import DatasetManager
-    dm = DatasetManager()
-    return dm
+    return DatasetManager()
 
 @pytest.fixture
 def mock_active_learner() -> MagicMock:
@@ -74,12 +73,12 @@ def workflow(mock_config: MagicMock, mock_dataset_manager: MagicMock, mock_activ
 
 def test_step2_active_learning_saves_dft_path(workflow: MaceDistillationWorkflow) -> None:
     state = PipelineState(current_step=2)
-    state.artifacts["pool_path"] = "pool.xyz"
+    state.artifacts["pool_path"] = Path("pool.xyz")
 
     new_state = workflow.step2_active_learning_loop(state)
 
-    assert new_state.artifacts["dft_dataset_path"] == "dft_data.xyz"
-    assert new_state.artifacts["mace_model_path"] == "model.mace"
+    assert new_state.artifacts["dft_dataset_path"] == Path("dft_data.xyz")
+    assert new_state.artifacts["mace_model_path"] == Path("model.mace")
 
 def test_step5_surrogate_labeling_calls_compute_batch(workflow: MaceDistillationWorkflow, mock_mace_oracle: MagicMock, tmp_path: Path) -> None:
     state = PipelineState(current_step=5)
@@ -94,8 +93,8 @@ def test_step5_surrogate_labeling_calls_compute_batch(workflow: MaceDistillation
     atoms_list = [Atoms("H2"), Atoms("H2")]
     dm.save(atoms_list, pool_path)
 
-    state.artifacts["surrogate_pool_path"] = str(pool_path)
-    state.artifacts["mace_model_path"] = "model.mace"
+    state.artifacts["surrogate_pool_path"] = pool_path
+    state.artifacts["mace_model_path"] = Path("model.mace")
 
     # Mock _write_labeled_stream to avoid output file I/O complexity
     workflow._write_labeled_stream = MagicMock(return_value=2)
@@ -122,8 +121,8 @@ def test_step5_handles_error(workflow: MaceDistillationWorkflow, mock_mace_oracl
     from pyacemaker.oracle.dataset import DatasetManager
     DatasetManager().save([Atoms("H")], pool_path)
 
-    state.artifacts["surrogate_pool_path"] = str(pool_path)
-    state.artifacts["mace_model_path"] = "model.mace"
+    state.artifacts["surrogate_pool_path"] = pool_path
+    state.artifacts["mace_model_path"] = Path("model.mace")
 
     # Mock compute_batch to raise exception
     mock_mace_oracle.compute_batch.side_effect = RuntimeError("Oracle Failed")
@@ -140,15 +139,16 @@ def test_step5_chunked_streaming(workflow: MaceDistillationWorkflow, mock_mace_o
 
     # Create a larger file (e.g. 100 atoms)
     # We want to ensure that compute_batch receives an iterator, not a list.
-    from pyacemaker.oracle.dataset import DatasetManager
     from ase import Atoms
+
+    from pyacemaker.oracle.dataset import DatasetManager
 
     n_atoms = 100
     atoms_list = [Atoms("H") for _ in range(n_atoms)]
     DatasetManager().save(atoms_list, pool_path)
 
-    state.artifacts["surrogate_pool_path"] = str(pool_path)
-    state.artifacts["mace_model_path"] = "model.mace"
+    state.artifacts["surrogate_pool_path"] = pool_path
+    state.artifacts["mace_model_path"] = Path("model.mace")
 
     # Mock _write_labeled_stream
     workflow._write_labeled_stream = MagicMock(return_value=n_atoms)
@@ -171,8 +171,7 @@ def test_step5_chunked_streaming(workflow: MaceDistillationWorkflow, mock_mace_o
 
 def test_step7_delta_learning_calls_trainer(workflow: MaceDistillationWorkflow, mock_pacemaker_trainer: MagicMock, mock_dataset_manager: MagicMock, tmp_path: Path) -> None:
     state = PipelineState(current_step=7)
-    state.artifacts["pacemaker_potential_path"] = "base.yace"
-    state.artifacts["dft_dataset_path"] = "dft_data.xyz"
+    state.artifacts["pacemaker_potential_path"] = Path("base.yace")
 
     # Write a real file for DFT dataset
     from ase import Atoms
@@ -180,7 +179,7 @@ def test_step7_delta_learning_calls_trainer(workflow: MaceDistillationWorkflow, 
     from pyacemaker.oracle.dataset import DatasetManager
     dft_path = tmp_path / "dft_data.xyz"
     DatasetManager().save([Atoms("H")], dft_path)
-    state.artifacts["dft_dataset_path"] = str(dft_path)
+    state.artifacts["dft_dataset_path"] = dft_path
 
     # Use real logic for atoms_to_metadata by not mocking it, but ensuring the file content is valid.
     # We already wrote "H" atom to file.
@@ -208,4 +207,4 @@ def test_step7_delta_learning_calls_trainer(workflow: MaceDistillationWorkflow, 
     new_state = workflow.step7_delta_learning(state)
 
     assert mock_pacemaker_trainer.train.called
-    assert new_state.artifacts["final_potential"] == "final.yace"
+    assert new_state.artifacts["final_potential"] == Path("final.yace")

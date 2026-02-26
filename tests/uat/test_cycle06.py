@@ -24,13 +24,13 @@ def test_uat_tutorial_execution(tmp_path: Path) -> None:
     # Run the script
     # Use sys.executable for safety (S607 fixed)
     # S603: We trust the script path as it is part of the repo
-    result = subprocess.run(
+    result = subprocess.run(  # noqa: S603
         [sys.executable, str(script_path)],
         env=env,
         capture_output=True,
         text=True,
         cwd=Path.cwd(),
-        check=False  # We manually check returncode
+        check=False,  # We manually check returncode
     )
 
     # Check execution success

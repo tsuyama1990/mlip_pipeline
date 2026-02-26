@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 from ase import Atoms
 from ase.calculators.calculator import Calculator
@@ -26,7 +27,10 @@ from pyacemaker.validator.physics import (
 def mock_atoms() -> Atoms:
     """Create a mock Atoms object."""
     atoms = Atoms("Si2", positions=[[0, 0, 0], [1.5, 1.5, 1.5]], cell=[3, 3, 3], pbc=True)
-    atoms.calc = MagicMock(spec=Calculator)
+    mock_calc = MagicMock(spec=Calculator)
+    mock_calc.get_stress.return_value = np.zeros(6)
+    mock_calc.get_potential_energy.return_value = 0.0
+    atoms.calc = mock_calc
     return atoms
 
 
@@ -81,23 +85,23 @@ def test_check_eos_valid(mock_atoms: Atoms) -> None:
 def test_check_elastic_stable(mock_atoms: Atoms) -> None:
     """Test elastic stability check."""
     # Mock elastic constants calculation
-    with patch("pyacemaker.validator.physics.calculate_elastic_constants") as mock_calc:
+    with patch("pyacemaker.validator.physics.PhysicsValidator.calculate_elastic_constants") as mock_calc:
         # Mock Cij matrix for cubic system (stable)
         # C11 > |C12|, C11 + 2C12 > 0, C44 > 0
         mock_calc.return_value = {"C11": 160.0, "C12": 60.0, "C44": 80.0}
 
         is_stable, Cij = check_elastic(mock_atoms)
 
-        assert is_stable is True
+        assert is_stable
         assert Cij["C11"] == 160.0
 
 
 def test_check_elastic_unstable(mock_atoms: Atoms) -> None:
     """Test elastic stability check for unstable system."""
-    with patch("pyacemaker.validator.physics.calculate_elastic_constants") as mock_calc:
+    with patch("pyacemaker.validator.physics.PhysicsValidator.calculate_elastic_constants") as mock_calc:
         # Unstable case: C11 < C12
         mock_calc.return_value = {"C11": 50.0, "C12": 60.0, "C44": 80.0}
 
         is_stable, Cij = check_elastic(mock_atoms)
 
-        assert is_stable is False
+        assert not is_stable

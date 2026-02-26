@@ -51,18 +51,15 @@ def mock_workflow(mock_config, tmp_path):
     active_learner = MagicMock()
 
     return MaceDistillationWorkflow(
-        config=mock_config,
+        config=mock_config.distillation,
         dataset_manager=dataset_manager,
-        dataset_path=tmp_path / "dataset.pckl.gzip",
         oracle=oracle,
         mace_oracle=mace_oracle,
-        trainer=trainer,
+        pacemaker_trainer=trainer,
         mace_trainer=mace_trainer,
-        dynamics_engine=dynamics_engine,
         structure_generator=structure_generator,
-        validation_path=tmp_path / "validation.pckl.gzip",
-        training_path=tmp_path / "training.pckl.gzip",
         active_learner=active_learner,
+        work_dir=tmp_path / "work",
     )
 
 

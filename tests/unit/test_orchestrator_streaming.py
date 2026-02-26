@@ -61,6 +61,7 @@ def test_cold_start_streaming(streaming_config: PYACEMAKERConfig) -> None:
 
     orchestrator = Orchestrator(
         config=streaming_config,
+        base_dir=streaming_config.project.root_dir,
         structure_generator=mock_gen,
         oracle=mock_oracle,
         trainer=MagicMock(),
@@ -91,7 +92,7 @@ def test_cold_start_streaming(streaming_config: PYACEMAKERConfig) -> None:
 
 def test_validation_slice(streaming_config: PYACEMAKERConfig) -> None:
     """Verify validation splitting logic and bounds using DatasetSplitter."""
-    orchestrator = Orchestrator(config=streaming_config)
+    orchestrator = Orchestrator(config=streaming_config, base_dir=streaming_config.project.root_dir)
 
     # Fill dataset with 100 items
     dataset_path = orchestrator.dataset_path
@@ -160,7 +161,7 @@ def test_validation_slice(streaming_config: PYACEMAKERConfig) -> None:
 
 def test_exploration_integration(streaming_config: PYACEMAKERConfig) -> None:
     """Test exploration phase integration."""
-    orchestrator = Orchestrator(config=streaming_config)
+    orchestrator = Orchestrator(config=streaming_config, base_dir=streaming_config.project.root_dir)
     orchestrator.current_potential = MagicMock()  # Mock potential
 
     # Mock DynamicsEngine

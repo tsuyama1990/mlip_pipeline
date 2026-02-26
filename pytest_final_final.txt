@@ -1,0 +1,723 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0, mock-3.15.1
+collected 258 items
+
+tests/core/test_base.py .                                                [  0%]
+tests/core/test_config.py .....                                          [  2%]
+tests/core/test_config_failures.py ........                              [  5%]
+tests/core/test_config_security.py .....                                 [  7%]
+tests/core/test_generator_config_validation.py .....                     [  9%]
+tests/core/test_logging.py ....                                          [ 10%]
+tests/dynamics/test_kmc.py ..                                            [ 11%]
+tests/generator/test_mutations.py ....                                   [ 13%]
+tests/generator/test_policy.py ....                                      [ 14%]
+tests/generator/test_strategies.py ......                                [ 17%]
+tests/integration/test_delta_learning.py .                               [ 17%]
+tests/integration/test_error_conditions.py ...                           [ 18%]
+tests/integration/test_full_cycle.py ..                                  [ 19%]
+tests/integration/test_mace_workflow_logic.py .....                      [ 21%]
+tests/integration/test_memory_usage.py ..                                [ 22%]
+tests/integration/test_orchestrator_state.py EEE                         [ 23%]
+tests/integration/test_pipeline.py .                                     [ 23%]
+tests/integration/test_streaming.py ..                                   [ 24%]
+tests/integration/test_trainer_pipeline.py .                             [ 24%]
+tests/oracle/test_calculator.py .....                                    [ 26%]
+tests/oracle/test_dataset.py .....                                       [ 28%]
+tests/oracle/test_embedding.py ...                                       [ 29%]
+tests/oracle/test_manager.py .....                                       [ 31%]
+tests/oracle/test_manager_mutation.py .                                  [ 32%]
+tests/test_main.py ....                                                  [ 33%]
+tests/uat/test_cycle01.py ..                                             [ 34%]
+tests/uat/test_cycle02_features.py FF                                    [ 35%]
+tests/uat/test_cycle03.py ...                                            [ 36%]
+tests/uat/test_cycle04.py FFF                                            [ 37%]
+tests/uat/test_cycle05.py F                                              [ 37%]
+tests/uat/test_cycle06.py .                                              [ 38%]
+tests/unit/generator/test_direct.py ........                             [ 41%]
+tests/unit/modules/test_active_learner.py FFFF                           [ 43%]
+tests/unit/oracle/test_mace_oracle.py ....                               [ 44%]
+tests/unit/oracle/test_mace_uncertainty.py .....                         [ 46%]
+tests/unit/test_config_full.py ......                                    [ 48%]
+tests/unit/test_config_mace.py ......                                    [ 51%]
+tests/unit/test_data_integrity.py ..                                     [ 51%]
+tests/unit/test_dft_manager_edge_cases.py ...                            [ 53%]
+tests/unit/test_domain_models.py ...........                             [ 57%]
+tests/unit/test_domain_state.py ......                                   [ 59%]
+tests/unit/test_dynamics_engine.py ........                              [ 62%]
+tests/unit/test_dynamics_engine_ase.py ...                               [ 63%]
+tests/unit/test_mace_manager.py ....                                     [ 65%]
+tests/unit/test_mace_oracle_module.py ..                                 [ 66%]
+tests/unit/test_mace_trainer.py ..                                       [ 67%]
+tests/unit/test_mace_trainer_impl.py ...                                 [ 68%]
+tests/unit/test_mace_workflow_error_handling.py .                        [ 68%]
+tests/unit/test_oracle_module.py .......                                 [ 71%]
+tests/unit/test_orchestrator_delegation.py ..                            [ 72%]
+tests/unit/test_orchestrator_streaming.py ...                            [ 73%]
+tests/unit/test_pacemaker_wrapper_security.py ....                       [ 74%]
+tests/unit/test_pickle_security.py ...                                   [ 75%]
+tests/unit/test_schema_validation.py ......F                             [ 78%]
+tests/unit/test_streaming_components.py ...                              [ 79%]
+tests/unit/test_structure_generator.py ...                               [ 81%]
+tests/unit/test_trainer_active_set.py .                                  [ 81%]
+tests/unit/test_trainer_base.py ...                                      [ 82%]
+tests/unit/test_trainer_config.py ...                                    [ 83%]
+tests/unit/test_trainer_kwargs.py ......                                 [ 86%]
+tests/unit/test_trainer_module.py ....                                   [ 87%]
+tests/unit/test_trainer_wrapper.py ....                                  [ 89%]
+tests/unit/test_validator_module.py F                                    [ 89%]
+tests/unit/test_workflow_memory_safety.py ...                            [ 90%]
+tests/unit/trainer/test_pacemaker.py ....                                [ 92%]
+tests/unit/validator/test_base_validator.py .F                           [ 93%]
+tests/unit/validator/test_domain_validator.py ...                        [ 94%]
+tests/unit/validator/test_physics_validator.py ......                    [ 96%]
+tests/unit/validator/test_report_generator.py .                          [ 96%]
+tests/validator/test_physics.py .....                                    [ 98%]
+tests/validator/test_report.py E                                         [ 99%]
+tests/validator/test_validator_manager.py ../home/jules/.pyenv/versions/3.12.12/lib/python3.12/site-packages/coverage/inorout.py:561: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.4/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+                             [100%]
+
+==================================== ERRORS ====================================
+___________________ ERROR at setup of test_state_persistence ___________________
+
+mock_config = <MagicMock spec='PYACEMAKERConfig' id='139939948349344'>
+
+    @pytest.fixture
+    def orchestrator(mock_config):
+        """Create an Orchestrator instance."""
+        # Mock dependencies
+        with patch("pyacemaker.orchestrator.ModuleFactory"):
+>           return Orchestrator(
+                config=mock_config,
+                base_dir=mock_config.project.root_dir,
+                structure_generator=MagicMock(),
+                oracle=MagicMock(),
+                trainer=MagicMock(),
+                dynamics_engine=MagicMock(),
+                validator=MagicMock(),
+                mace_trainer=MagicMock(),
+                mace_oracle=MagicMock(),
+                active_learner=MagicMock(),
+            )
+
+tests/integration/test_orchestrator_state.py:35:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/pyacemaker/orchestrator.py:98: in __init__
+    self.pacemaker_trainer = PacemakerTrainer(config)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^
+src/pyacemaker/trainer/pacemaker.py:31: in __init__
+    super().__init__(config)
+src/pyacemaker/trainer/base.py:17: in __init__
+    self.trainer_config = config.trainer
+                          ^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <MagicMock spec='PYACEMAKERConfig' id='139939948349344'>
+name = 'trainer'
+
+    def __getattr__(self, name):
+        if name in {'_mock_methods', '_mock_unsafe'}:
+            raise AttributeError(name)
+        elif self._mock_methods is not None:
+            if name not in self._mock_methods or name in _all_magics:
+>               raise AttributeError("Mock object has no attribute %r" % name)
+E               AttributeError: Mock object has no attribute 'trainer'
+
+/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py:660: AttributeError
+________________ ERROR at setup of test_run_resumes_from_state _________________
+
+mock_config = <MagicMock spec='PYACEMAKERConfig' id='139939948067920'>
+
+    @pytest.fixture
+    def orchestrator(mock_config):
+        """Create an Orchestrator instance."""
+        # Mock dependencies
+        with patch("pyacemaker.orchestrator.ModuleFactory"):
+>           return Orchestrator(
+                config=mock_config,
+                base_dir=mock_config.project.root_dir,
+                structure_generator=MagicMock(),
+                oracle=MagicMock(),
+                trainer=MagicMock(),
+                dynamics_engine=MagicMock(),
+                validator=MagicMock(),
+                mace_trainer=MagicMock(),
+                mace_oracle=MagicMock(),
+                active_learner=MagicMock(),
+            )
+
+tests/integration/test_orchestrator_state.py:35:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/pyacemaker/orchestrator.py:98: in __init__
+    self.pacemaker_trainer = PacemakerTrainer(config)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^
+src/pyacemaker/trainer/pacemaker.py:31: in __init__
+    super().__init__(config)
+src/pyacemaker/trainer/base.py:17: in __init__
+    self.trainer_config = config.trainer
+                          ^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <MagicMock spec='PYACEMAKERConfig' id='139939948067920'>
+name = 'trainer'
+
+    def __getattr__(self, name):
+        if name in {'_mock_methods', '_mock_unsafe'}:
+            raise AttributeError(name)
+        elif self._mock_methods is not None:
+            if name not in self._mock_methods or name in _all_magics:
+>               raise AttributeError("Mock object has no attribute %r" % name)
+E               AttributeError: Mock object has no attribute 'trainer'
+
+/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py:660: AttributeError
+___________ ERROR at setup of test_state_updates_on_step_completion ____________
+
+mock_config = <MagicMock spec='PYACEMAKERConfig' id='139939948922736'>
+
+    @pytest.fixture
+    def orchestrator(mock_config):
+        """Create an Orchestrator instance."""
+        # Mock dependencies
+        with patch("pyacemaker.orchestrator.ModuleFactory"):
+>           return Orchestrator(
+                config=mock_config,
+                base_dir=mock_config.project.root_dir,
+                structure_generator=MagicMock(),
+                oracle=MagicMock(),
+                trainer=MagicMock(),
+                dynamics_engine=MagicMock(),
+                validator=MagicMock(),
+                mace_trainer=MagicMock(),
+                mace_oracle=MagicMock(),
+                active_learner=MagicMock(),
+            )
+
+tests/integration/test_orchestrator_state.py:35:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/pyacemaker/orchestrator.py:98: in __init__
+    self.pacemaker_trainer = PacemakerTrainer(config)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^
+src/pyacemaker/trainer/pacemaker.py:31: in __init__
+    super().__init__(config)
+src/pyacemaker/trainer/base.py:17: in __init__
+    self.trainer_config = config.trainer
+                          ^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <MagicMock spec='PYACEMAKERConfig' id='139939948922736'>
+name = 'trainer'
+
+    def __getattr__(self, name):
+        if name in {'_mock_methods', '_mock_unsafe'}:
+            raise AttributeError(name)
+        elif self._mock_methods is not None:
+            if name not in self._mock_methods or name in _all_magics:
+>               raise AttributeError("Mock object has no attribute %r" % name)
+E               AttributeError: Mock object has no attribute 'trainer'
+
+/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py:660: AttributeError
+____________________ ERROR at setup of test_generate_report ____________________
+
+    @pytest.fixture
+    def validation_result() -> ValidationResult:
+        """Create a mock validation result."""
+>       return ValidationResult(
+            passed=True,
+            metrics={"rmse_energy": 0.001, "bulk_modulus": 100.0},
+            phonon_stable=True,
+            elastic_stable=True,
+            artifacts={"eos": "eos.png"},
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ValidationResult
+E       eos_stable
+E         Field required [type=missing, input_value={'passed': True, 'metrics...ts': {'eos': 'eos.png'}}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+tests/validator/test_report.py:15: ValidationError
+=================================== FAILURES ===================================
+______________________ test_workflow_dependency_injection ______________________
+
+uat_config = <MagicMock spec='PYACEMAKERConfig' id='139939944487568'>
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-20/test_workflow_dependency_injec0')
+
+    def test_workflow_dependency_injection(uat_config, tmp_path):
+        """Verify that dependencies are correctly passed to the workflow."""
+
+        # Mock dependencies
+        mace_trainer = MagicMock()
+        mace_oracle = MagicMock()
+        pacemaker_trainer = MagicMock()
+
+>       orchestrator = Orchestrator(
+            config=uat_config,
+            base_dir=tmp_path,
+            mace_trainer=mace_trainer,
+            mace_oracle=mace_oracle,
+            pacemaker_trainer=pacemaker_trainer
+        )
+
+tests/uat/test_cycle02_features.py:28:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/pyacemaker/orchestrator.py:69: in __init__
+    structure_generator or ModuleFactory.create_structure_generator(config)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/pyacemaker/core/factory.py:40: in create_structure_generator
+    if config.structure_generator.strategy == "adaptive":
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <MagicMock spec='PYACEMAKERConfig' id='139939944487568'>
+name = 'structure_generator'
+
+    def __getattr__(self, name):
+        if name in {'_mock_methods', '_mock_unsafe'}:
+            raise AttributeError(name)
+        elif self._mock_methods is not None:
+            if name not in self._mock_methods or name in _all_magics:
+>               raise AttributeError("Mock object has no attribute %r" % name)
+E               AttributeError: Mock object has no attribute 'structure_generator'
+
+/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py:660: AttributeError
+________________________ test_workflow_delegation_flow _________________________
+
+uat_config = <MagicMock spec='PYACEMAKERConfig' id='139939946258960'>
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-20/test_workflow_delegation_flow0')
+
+    def test_workflow_delegation_flow(uat_config, tmp_path):
+        """Verify that orchestrator calls workflow steps in order."""
+>       orchestrator = Orchestrator(
+            config=uat_config,
+            base_dir=tmp_path,
+            mace_trainer=MagicMock(),
+            mace_oracle=MagicMock(),
+            pacemaker_trainer=MagicMock()
+        )
+
+tests/uat/test_cycle02_features.py:55:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/pyacemaker/orchestrator.py:69: in __init__
+    structure_generator or ModuleFactory.create_structure_generator(config)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/pyacemaker/core/factory.py:40: in create_structure_generator
+    if config.structure_generator.strategy == "adaptive":
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <MagicMock spec='PYACEMAKERConfig' id='139939946258960'>
+name = 'structure_generator'
+
+    def __getattr__(self, name):
+        if name in {'_mock_methods', '_mock_unsafe'}:
+            raise AttributeError(name)
+        elif self._mock_methods is not None:
+            if name not in self._mock_methods or name in _all_magics:
+>               raise AttributeError("Mock object has no attribute %r" % name)
+E               AttributeError: Mock object has no attribute 'structure_generator'
+
+/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py:660: AttributeError
+__________________ test_scenario_01_successful_batch_labeling __________________
+
+mock_workflow = <pyacemaker.modules.mace_workflow.MaceDistillationWorkflow object at 0x7f464eb0b590>
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-20/test_scenario_01_successful_ba0')
+
+    def test_scenario_01_successful_batch_labeling(mock_workflow, tmp_path):
+        """Scenario 01: Successful Batch Labeling."""
+        # GIVEN a list of unlabeled structures (surrogate_candidates)
+        # Created as a file to simulate Step 4 output
+        surrogate_path = tmp_path / "surrogate_unlabeled.pckl.gzip"
+
+        atoms_list = [Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]]) for _ in range(5)]
+        # Save using dataset manager
+        mock_workflow.dataset_manager.save_iter(iter(atoms_list), surrogate_path)
+
+        # AND a fine-tuned MaceSurrogateOracle (mocked)
+        # We mock compute_batch to simulate labeling
+        def mock_compute_batch(stream):
+            for s in stream:
+                s.energy = -10.0
+                s.forces = [[0.0, 0.0, 0.0]] * len(s.features["atoms"])
+                s.status = StructureStatus.CALCULATED
+                yield s
+
+        mock_workflow.mace_oracle.compute_batch.side_effect = mock_compute_batch
+
+        # WHEN the Orchestrator executes Step 5 (via workflow)
+        # We call the internal step method directly for UAT
+>       dataset_path = mock_workflow.step5_surrogate_labeling(mock_workflow.config.distillation, surrogate_path)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: MaceDistillationWorkflow.step5_surrogate_labeling() takes 2 positional arguments but 3 were given
+
+tests/uat/test_cycle04.py:89: TypeError
+______________________ test_scenario_02_base_ace_training ______________________
+
+mock_workflow = <pyacemaker.modules.mace_workflow.MaceDistillationWorkflow object at 0x7f464ec971d0>
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-20/test_scenario_02_base_ace_trai0')
+
+    def test_scenario_02_base_ace_training(mock_workflow, tmp_path):
+        """Scenario 02: Base ACE Training."""
+        # GIVEN a surrogate_dataset.pckl.gzip
+        dataset_path = tmp_path / "surrogate_dataset.pckl.gzip"
+        atoms = Atoms("H", positions=[[0, 0, 0]])
+        # Attach results properly
+        atoms.calc = SinglePointCalculator(atoms, energy=-1.0, forces=[[0, 0, 0]])
+        atoms_list = [atoms]
+        mock_workflow.dataset_manager.save_iter(iter(atoms_list), dataset_path)
+
+        # AND a PacemakerTrainer configuration (mocked in workflow init)
+>       mock_workflow.trainer.train.return_value = Potential(
+        ^^^^^^^^^^^^^^^^^^^^^
+            path=tmp_path / "potential.yace",
+            type=PotentialType.PACE,
+            version="1.0",
+            metrics={},
+            parameters={}
+        )
+E       AttributeError: 'MaceDistillationWorkflow' object has no attribute 'trainer'
+
+tests/uat/test_cycle04.py:118: AttributeError
+_______________________ test_scenario_03_error_handling ________________________
+
+mock_workflow = <pyacemaker.modules.mace_workflow.MaceDistillationWorkflow object at 0x7f464eb3e150>
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-20/test_scenario_03_error_handlin0')
+
+    def test_scenario_03_error_handling(mock_workflow, tmp_path):
+        """Scenario 03: Error Handling in Workflow."""
+        # GIVEN a workflow where MACE Oracle fails during Step 5
+        mock_workflow.mace_oracle.compute_batch.side_effect = Exception("Oracle failure")
+
+        # We mock earlier steps to return valid paths so we reach labeling/calculation
+        mock_workflow.step1_direct_sampling = MagicMock(return_value=tmp_path / "pool.pckl")
+        mock_workflow.step2_active_learning_loop = MagicMock(return_value=None)
+        mock_workflow.step4_surrogate_data_generation = MagicMock(return_value=tmp_path / "surrogate.pckl")
+
+        # Need to mock the file existence for step 5 to proceed to load stream
+        (tmp_path / "surrogate.pckl").touch()
+
+        # WHEN running the workflow
+>       result = mock_workflow.run()
+                 ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'MaceDistillationWorkflow' object has no attribute 'run'
+
+tests/uat/test_cycle04.py:152: AttributeError
+_______________________ test_full_distillation_workflow ________________________
+
+uat_config = <MagicMock spec='PYACEMAKERConfig' id='139939944707376'>
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-20/test_full_distillation_workflo0')
+
+    def test_full_distillation_workflow(uat_config, tmp_path):
+        """Verify the complete 7-step MACE distillation workflow."""
+
+        # Mock dependencies
+        dataset_manager = MagicMock()
+        structure_generator = MagicMock()
+        oracle = MagicMock()
+        mace_trainer = MagicMock()
+        mace_oracle = MagicMock()
+        pacemaker_trainer = MagicMock()
+        active_learner = MagicMock()
+
+        # Setup mocks for artifacts
+        active_learner.run_loop.return_value = tmp_path / "fine_tuned.model"
+        pacemaker_trainer.train.return_value = tmp_path / "pace.yace"
+        mace_trainer.train.return_value = MagicMock(path=tmp_path / "mace_final.model")
+
+        # Instantiate Orchestrator with explicit dependencies
+>       orchestrator = Orchestrator(
+            config=uat_config,
+            base_dir=tmp_path,
+            structure_generator=structure_generator,
+            oracle=oracle,
+            mace_trainer=mace_trainer,
+            mace_oracle=mace_oracle,
+            pacemaker_trainer=pacemaker_trainer,
+            active_learner=active_learner
+        )
+
+tests/uat/test_cycle05.py:52:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/pyacemaker/orchestrator.py:72: in __init__
+    self.trainer: Trainer = trainer or ModuleFactory.create_trainer(config)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/pyacemaker/core/factory.py:61: in create_trainer
+    return PacemakerTrainer(config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+src/pyacemaker/trainer/pacemaker.py:31: in __init__
+    super().__init__(config)
+src/pyacemaker/trainer/base.py:17: in __init__
+    self.trainer_config = config.trainer
+                          ^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <MagicMock spec='PYACEMAKERConfig' id='139939944707376'>
+name = 'trainer'
+
+    def __getattr__(self, name):
+        if name in {'_mock_methods', '_mock_unsafe'}:
+            raise AttributeError(name)
+        elif self._mock_methods is not None:
+            if name not in self._mock_methods or name in _all_magics:
+>               raise AttributeError("Mock object has no attribute %r" % name)
+E               AttributeError: Mock object has no attribute 'trainer'
+
+/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py:660: AttributeError
+___________________________ test_select_batch_top_k ____________________________
+
+    def test_select_batch_top_k() -> None:
+        """Test selection of top K structures by uncertainty."""
+>       learner = ActiveLearner()
+                  ^^^^^^^^^^^^^^^
+E       TypeError: ActiveLearner.__init__() missing 2 required positional arguments: 'config' and 'oracle'
+
+tests/unit/modules/test_active_learner.py:25: TypeError
+_________________________ test_select_batch_threshold __________________________
+
+    def test_select_batch_threshold() -> None:
+        """Test filtering by uncertainty threshold."""
+>       learner = ActiveLearner()
+                  ^^^^^^^^^^^^^^^
+E       TypeError: ActiveLearner.__init__() missing 2 required positional arguments: 'config' and 'oracle'
+
+tests/unit/modules/test_active_learner.py:44: TypeError
+_____________________ test_select_batch_memory_efficiency ______________________
+
+    def test_select_batch_memory_efficiency() -> None:
+        """Verify heapq.nlargest is used for memory efficiency."""
+>       learner = ActiveLearner()
+                  ^^^^^^^^^^^^^^^
+E       TypeError: ActiveLearner.__init__() missing 2 required positional arguments: 'config' and 'oracle'
+
+tests/unit/modules/test_active_learner.py:61: TypeError
+_________________________ test_select_batch_edge_cases _________________________
+
+    def test_select_batch_edge_cases() -> None:
+        """Test edge cases."""
+>       learner = ActiveLearner()
+                  ^^^^^^^^^^^^^^^
+E       TypeError: ActiveLearner.__init__() missing 2 required positional arguments: 'config' and 'oracle'
+
+tests/unit/modules/test_active_learner.py:73: TypeError
+________________________ test_potential_path_validation ________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-20/test_potential_path_validation0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f464eb0a7b0>
+
+    def test_potential_path_validation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test potential path security validation."""
+        monkeypatch.setattr(CONSTANTS, "skip_file_checks", False)
+        monkeypatch.chdir(tmp_path)
+
+        # Valid relative path
+>       p = Potential(path=Path("potentials/test.yace"), type=PotentialType.PACE, version="1.0")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for Potential
+E       path
+E         Value error, Path validation failed for potentials/test.yace: Parent directory does not exist for path: /tmp/pytest-of-jules/pytest-20/test_potential_path_validation0/potentials/test.yace [type=value_error, input_value=PosixPath('potentials/test.yace'), input_type=PosixPath]
+E           For further information visit https://errors.pydantic.dev/2.12/v/value_error
+
+/app/tests/unit/test_schema_validation.py:103: ValidationError
+_____________________ test_validator_single_pass_selection _____________________
+
+config = PYACEMAKERConfig(version='0.1.0', project=ProjectConfig(name='test', root_dir=PosixPath('/tmp/pytest-of-jules/pytest-2...pacemaker_finetune=Step7PacemakerFinetuneConfig(enable=True, weight_dft=10.0), batch_size=100, write_buffer_size=1000))
+
+    def test_validator_single_pass_selection(config: PYACEMAKERConfig) -> None:
+        """Test that Validator selects the best structure in a single pass."""
+        validator = Validator(config)
+
+        # Create test set
+        # Structure 1: Energy -5.0, 2 atoms -> -2.5 eV/atom
+        # Structure 2: Energy -6.0, 2 atoms -> -3.0 eV/atom (Best)
+        # Structure 3: Energy -2.0, 1 atom -> -2.0 eV/atom
+
+        s1 = StructureMetadata(energy=-5.0, features={"atoms": Atoms("H2")})
+        s2 = StructureMetadata(energy=-6.0, features={"atoms": Atoms("H2")})
+        s3 = StructureMetadata(energy=-2.0, features={"atoms": Atoms("H")})
+
+        def test_stream():
+            yield s1
+            yield s2
+            yield s3
+
+        potential = Potential(
+            path=Path("dummy.yace"),
+            type=PotentialType.PACE,
+            version="1.0",
+            metrics={},
+            parameters={},
+        )
+
+        with patch("pyacemaker.modules.validator.ValidatorManager") as MockManager:
+            mock_manager_instance = MockManager.return_value
+>           mock_manager_instance.validate.return_value = ValidationResult(
+                passed=True,
+                metrics={"bulk_modulus": 100.0},
+                artifacts={},
+                phonon_stable=True,
+                elastic_stable=True,
+            )
+E           pydantic_core._pydantic_core.ValidationError: 1 validation error for ValidationResult
+E           eos_stable
+E             Field required [type=missing, input_value={'passed': True, 'metrics... 'elastic_stable': True}, input_type=dict]
+E               For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+tests/unit/test_validator_module.py:66: ValidationError
+____________________ test_concrete_validator_implementation ____________________
+
+    def test_concrete_validator_implementation() -> None:
+        """Test concrete implementation."""
+
+        class MockValidator(BaseValidator):
+            def validate(
+                self,
+                potential_path: Path,
+                structure: Atoms,
+                output_dir: Path,
+                **kwargs: object,
+            ) -> ValidationResult:
+                return ValidationResult(
+                    passed=True,
+                    metrics={},
+                    eos_stable=True,
+                    phonon_stable=True,
+                    elastic_stable=True,
+                )
+
+        validator = MockValidator()
+>       result = validator.validate(Path("pot"), Atoms(), Path("out"))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/validator/test_base_validator.py:38:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <test_base_validator.test_concrete_validator_implementation.<locals>.MockValidator object at 0x7f464eb2d6d0>
+potential_path = PosixPath('pot'), structure = Atoms(symbols='', pbc=False)
+output_dir = PosixPath('out'), kwargs = {}
+
+    def validate(
+        self,
+        potential_path: Path,
+        structure: Atoms,
+        output_dir: Path,
+        **kwargs: object,
+    ) -> ValidationResult:
+>       return ValidationResult(
+            passed=True,
+            metrics={},
+            eos_stable=True,
+            phonon_stable=True,
+            elastic_stable=True,
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ValidationResult
+E       metrics
+E         Dictionary should have at least 1 item after validation, not 0 [type=too_short, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/too_short
+
+tests/unit/validator/test_base_validator.py:29: ValidationError
+=============================== warnings summary ===============================
+tests/uat/test_cycle06.py:11
+  /app/tests/uat/test_cycle06.py:11: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_mace_workflow_logic.py::test_step5_surrogate_labeling_calls_compute_batch
+  /app/tests/integration/test_mace_workflow_logic.py:94: UserWarning: DatasetManager.save() delegates to save_iter() for scalability. Prefer using save_iter() directly with iterators.
+    dm.save(atoms_list, pool_path)
+
+tests/integration/test_mace_workflow_logic.py::test_step5_handles_error
+  /app/tests/integration/test_mace_workflow_logic.py:122: UserWarning: DatasetManager.save() delegates to save_iter() for scalability. Prefer using save_iter() directly with iterators.
+    DatasetManager().save([Atoms("H")], pool_path)
+
+tests/integration/test_mace_workflow_logic.py::test_step5_chunked_streaming
+  /app/tests/integration/test_mace_workflow_logic.py:148: UserWarning: DatasetManager.save() delegates to save_iter() for scalability. Prefer using save_iter() directly with iterators.
+    DatasetManager().save(atoms_list, pool_path)
+
+tests/integration/test_mace_workflow_logic.py::test_step7_delta_learning_calls_trainer
+  /app/tests/integration/test_mace_workflow_logic.py:181: UserWarning: DatasetManager.save() delegates to save_iter() for scalability. Prefer using save_iter() directly with iterators.
+    DatasetManager().save([Atoms("H")], dft_path)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                            Stmts   Miss  Cover   Missing
+-----------------------------------------------------------------------------
+src/pyacemaker/__init__.py                          5      2    60%   5-6
+src/pyacemaker/core/__init__.py                     0      0   100%
+src/pyacemaker/core/base.py                        18      0   100%
+src/pyacemaker/core/config.py                     441     35    92%   31-32, 36-37, 43-44, 428-429, 448-449, 456-457, 460-462, 555-557, 641, 644-645, 874, 940-944, 1068-1071, 1159-1160, 1225-1226
+src/pyacemaker/core/config_loader.py               82     27    67%   32-33, 37-38, 44-48, 55-67, 80-81, 129-134
+src/pyacemaker/core/dataset.py                     71      3    96%   51, 98, 133
+src/pyacemaker/core/exceptions.py                  11      0   100%
+src/pyacemaker/core/factory.py                     43      3    93%   41, 72, 74
+src/pyacemaker/core/interfaces.py                  44      0   100%
+src/pyacemaker/core/io_utils.py                    10     10     0%   3-26
+src/pyacemaker/core/logging.py                     10      0   100%
+src/pyacemaker/core/utils.py                      188     44    77%   45-48, 64-65, 92-93, 96-97, 100-101, 145-146, 180-181, 201, 219-220, 255-256, 278, 282, 284-287, 309-310, 328, 335-338, 346-347, 375-376, 384-386, 414-416, 445-446
+src/pyacemaker/core/validation.py                  88     28    68%   16, 21, 27-52, 64-65, 92-95, 129-130, 141-142
+src/pyacemaker/domain_models/__init__.py            3      0   100%
+src/pyacemaker/domain_models/common.py             37      0   100%
+src/pyacemaker/domain_models/metrics.py            19     19     0%   4-41
+src/pyacemaker/domain_models/models.py              6      0   100%
+src/pyacemaker/domain_models/potential.py          44      9    80%   35-36, 42-43, 52-53, 61-63
+src/pyacemaker/domain_models/state.py               9      0   100%
+src/pyacemaker/domain_models/structure.py         178     38    79%   33, 35-36, 41-42, 48-51, 56-68, 84-85, 91-94, 99-102, 208-209, 224-225, 229-230, 233-234, 252-257, 291-292
+src/pyacemaker/domain_models/task.py               62      8    87%   33-34, 43, 49-58
+src/pyacemaker/domain_models/validator.py           9      0   100%
+src/pyacemaker/dynamics/__init__.py                 0      0   100%
+src/pyacemaker/dynamics/kmc.py                     52      9    83%   27-28, 42-45, 157-160
+src/pyacemaker/generator/__init__.py                0      0   100%
+src/pyacemaker/generator/direct.py                105      6    94%   49-50, 71, 117, 132, 164
+src/pyacemaker/generator/mutations.py              26      0   100%
+src/pyacemaker/generator/policy.py                 23      1    96%   45
+src/pyacemaker/generator/strategies.py             59      3    95%   92-94
+src/pyacemaker/main.py                             40      5    88%   29-31, 54-55
+src/pyacemaker/modules/__init__.py                  6      0   100%
+src/pyacemaker/modules/active_learner.py           29     17    41%   28-37, 59-80
+src/pyacemaker/modules/dynamics_engine.py         220     69    69%   49, 55-56, 62-63, 102, 151-153, 206, 214-228, 248-249, 293, 314-315, 319-320, 326-329, 333-334, 347-348, 365-424
+src/pyacemaker/modules/mace_workflow.py           173     54    69%   84-107, 117-118, 138-141, 174-176, 187, 197-198, 202-204, 216-217, 227-229, 270-290, 300-302, 307-309, 313-315, 342-344
+src/pyacemaker/modules/oracle.py                  121     14    88%   53, 81, 111-112, 143-144, 158-161, 197-199, 210
+src/pyacemaker/modules/structure_generator.py      88     51    42%   23-24, 38-40, 56-57, 59-60, 75-76, 92, 100-101, 105-106, 113-136, 144-146, 155-184, 197-204, 208
+src/pyacemaker/modules/trainer.py                   8      2    75%   10-11
+src/pyacemaker/modules/validator.py                56     33    41%   18, 63-64, 69-123
+src/pyacemaker/oracle/__init__.py                   4      0   100%
+src/pyacemaker/oracle/base_oracle.py               48     11    77%   47-48, 86-98
+src/pyacemaker/oracle/calculator.py                38      6    84%   68-69, 92, 98, 121-122
+src/pyacemaker/oracle/dataset.py                  205     47    77%   41, 44, 47, 67, 120-132, 156-159, 162-168, 176-185, 187, 217, 223-224, 229-236, 298, 359-360, 389-394, 408-411, 417-418
+src/pyacemaker/oracle/mace_manager.py             208    120    42%   22, 42-43, 48-49, 56-65, 68-73, 83-86, 93-94, 100, 104-105, 117-119, 127-130, 139-178, 187-190, 215-216, 219, 221, 240-241, 250-251, 257-258, 262-276, 280-290, 294-328, 332-334, 338-343
+src/pyacemaker/oracle/mace_oracle.py              147     30    80%   35-36, 46-47, 51-56, 66-67, 71, 79-83, 117-121, 130-132, 152-154, 189-190, 199, 207-209
+src/pyacemaker/oracle/manager.py                   70      8    89%   73-75, 81-83, 150-151
+src/pyacemaker/orchestrator.py                    259     42    84%   86, 145-149, 166-167, 169-170, 172-173, 204-205, 226-230, 265-267, 276, 381-382, 407-408, 424-426, 445, 459, 464-465, 485-486, 519-522, 526-528, 558
+src/pyacemaker/trainer/__init__.py                  0      0   100%
+src/pyacemaker/trainer/active_set.py               16      3    81%   35-38
+src/pyacemaker/trainer/base.py                      9      0   100%
+src/pyacemaker/trainer/mace_trainer.py             60     11    82%   33, 38-39, 66-67, 80-82, 102, 122-123
+src/pyacemaker/trainer/pacemaker.py               109      8    93%   39-40, 103, 180, 230-231, 241-242
+src/pyacemaker/trainer/wrapper.py                  88     25    72%   17-18, 25, 45-53, 98-99, 131, 134-135, 138, 143-146, 182-183, 187-188
+src/pyacemaker/validator/__init__.py                0      0   100%
+src/pyacemaker/validator/base.py                    8      0   100%
+src/pyacemaker/validator/manager.py                96     52    46%   27-83, 99-101, 121-123, 138-142, 150-153
+src/pyacemaker/validator/physics.py               126     35    72%   48, 76-78, 136-137, 162-164, 183-220, 253
+src/pyacemaker/validator/report.py                 13      0   100%
+-----------------------------------------------------------------------------
+TOTAL                                            3888    888    77%
+=========================== short test summary info ============================
+FAILED tests/uat/test_cycle02_features.py::test_workflow_dependency_injection
+FAILED tests/uat/test_cycle02_features.py::test_workflow_delegation_flow - At...
+FAILED tests/uat/test_cycle04.py::test_scenario_01_successful_batch_labeling
+FAILED tests/uat/test_cycle04.py::test_scenario_02_base_ace_training - Attrib...
+FAILED tests/uat/test_cycle04.py::test_scenario_03_error_handling - Attribute...
+FAILED tests/uat/test_cycle05.py::test_full_distillation_workflow - Attribute...
+FAILED tests/unit/modules/test_active_learner.py::test_select_batch_top_k - T...
+FAILED tests/unit/modules/test_active_learner.py::test_select_batch_threshold
+FAILED tests/unit/modules/test_active_learner.py::test_select_batch_memory_efficiency
+FAILED tests/unit/modules/test_active_learner.py::test_select_batch_edge_cases
+FAILED tests/unit/test_schema_validation.py::test_potential_path_validation
+FAILED tests/unit/test_validator_module.py::test_validator_single_pass_selection
+FAILED tests/unit/validator/test_base_validator.py::test_concrete_validator_implementation
+ERROR tests/integration/test_orchestrator_state.py::test_state_persistence - ...
+ERROR tests/integration/test_orchestrator_state.py::test_run_resumes_from_state
+ERROR tests/integration/test_orchestrator_state.py::test_state_updates_on_step_completion
+ERROR tests/validator/test_report.py::test_generate_report - pydantic_core._p...
+======= 13 failed, 241 passed, 5 warnings, 4 errors in 125.38s (0:02:05) =======

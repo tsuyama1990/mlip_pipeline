@@ -73,7 +73,7 @@ class TestCycle03UAT:
         mock_run.return_value = MagicMock(returncode=0)
 
         # Simulate output creation by pace_train
-        def mock_pace_train_side_effect(*args, **kwargs):
+        def mock_pace_train_side_effect(*args: Any, **kwargs: Any) -> MagicMock:
             # Check if cwd is in kwargs
             cwd = kwargs.get("cwd")
             if cwd:
@@ -128,7 +128,7 @@ class TestCycle03UAT:
         mock_run.return_value = MagicMock(returncode=0)
 
         # Simulate output creation by pace_activeset
-        def mock_activeset_side_effect(*args, **kwargs):
+        def mock_activeset_side_effect(*args: Any, **kwargs: Any) -> MagicMock:
             # pace_activeset command: ["pace_activeset", "--dataset", ..., "--output", output_path]
             # args[0] is the command list
             cmd = args[0]
@@ -213,7 +213,7 @@ class TestCycle03UAT:
 
         mock_run.return_value = MagicMock(returncode=0)
 
-        def mock_pace_train_side_effect(*args, **kwargs):
+        def mock_pace_train_side_effect(*args: Any, **kwargs: Any) -> MagicMock:
             cwd = kwargs.get("cwd")
             if cwd:
                 (cwd / "potential.yace").touch()

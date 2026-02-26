@@ -105,7 +105,7 @@ def test_trainer_select_active_set_streaming(streaming_config: PYACEMAKERConfig)
 
 def test_orchestrator_training_phase_streaming(streaming_config: PYACEMAKERConfig) -> None:
     """Verify Orchestrator._run_training_phase uses streaming."""
-    orchestrator = Orchestrator(config=streaming_config)
+    orchestrator = Orchestrator(config=streaming_config, base_dir=streaming_config.project.root_dir)
 
     # Mock trainer
     orchestrator.trainer = MagicMock()

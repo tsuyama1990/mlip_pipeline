@@ -38,7 +38,7 @@ class TestErrorConditions:
             trainer=TrainerConfig(mock=True),
         )
 
-    def test_checksum_corruption_detection(self, error_config: PYACEMAKERConfig) -> None:
+    def test_checksum_corruption_detection(self, error_config: PYACEMAKERConfig, tmp_path: Path) -> None:
         """Test that dataset loading fails if checksum is corrupted."""
         orchestrator = Orchestrator(error_config, base_dir=tmp_path)
         dataset_path = orchestrator.dataset_path
@@ -59,7 +59,7 @@ class TestErrorConditions:
         with pytest.raises(ValueError, match="Checksum verification failed"):
             list(orchestrator.dataset_manager.load_iter(dataset_path))
 
-    def test_partial_write_recovery(self, error_config: PYACEMAKERConfig) -> None:
+    def test_partial_write_recovery(self, error_config: PYACEMAKERConfig, tmp_path: Path) -> None:
         """Test behavior when dataset file is truncated/corrupted."""
         orchestrator = Orchestrator(error_config, base_dir=tmp_path)
         dataset_path = orchestrator.dataset_path
@@ -81,7 +81,7 @@ class TestErrorConditions:
         assert len(loaded) == 1
         assert loaded[0].get_chemical_formula() == "H"  # type: ignore[no-untyped-call]
 
-    def test_orchestrator_dataset_corruption_handling(self, error_config: PYACEMAKERConfig) -> None:
+    def test_orchestrator_dataset_corruption_handling(self, error_config: PYACEMAKERConfig, tmp_path: Path) -> None:
         """Test Orchestrator resilience to dataset corruption during cycle."""
         orchestrator = Orchestrator(error_config, base_dir=tmp_path)
 
