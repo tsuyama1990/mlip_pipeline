@@ -1,0 +1,30 @@
+orchestrator:
+  work_dir: "work_fept_mgo"
+  max_cycles: 5
+
+generator:
+  type: "RANDOM"
+  n_structures: 10
+  seed: 42
+
+oracle:
+  type: "MOCK"  # Use "QE" for real DFT
+  scf_kspacing: 0.4
+  # pseudopotentials:
+  #   Fe: "Fe.pbe-n-kjpaw_psl.1.0.0.UPF"
+  #   Pt: "Pt.pbe-n-kjpaw_psl.1.0.0.UPF"
+  #   Mg: "Mg.pbe-n-kjpaw_psl.1.0.0.UPF"
+  #   O: "O.pbe-n-kjpaw_psl.1.0.0.UPF"
+
+trainer:
+  type: "MOCK" # Use "PACEMAKER" for real training
+  validation_split: 0.1
+
+dynamics:
+  type: "MOCK" # Use "LAMMPS" for real MD
+  temperature: 300.0
+  n_steps: 1000
+
+validator:
+  type: "MOCK" # Use "STANDARD" for real validation
+  threshold: 0.02
